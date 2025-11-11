@@ -1,5 +1,5 @@
 import { expect } from '@esm-bundle/chai';
-import { setLibs } from '../../scripts/scripts.js';
+import { setLibs } from '../../scripts/utils.js';
 
 describe('Libs', () => {
   it('Default Libs', () => {
