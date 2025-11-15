@@ -10,6 +10,37 @@
   }
 </style>
 <script>
+  window.miloLibs = (() => {
+    const { hostname, search } = window.location;
+    if (!['.aem.', '.stage.', 'local'].some((i) => hostname.includes(i))) return '/libs';
+    const branch = new URLSearchParams(search).get('milolibs') || 'main';
+    if (branch === 'local') return 'http://localhost:6456/libs';
+    return branch.includes('--') ? `https://${branch}.aem.live/libs` : `https://${branch}--milo--adobecom.aem.live/libs`;
+  })();
+
+  const miloStyles = document.createElement('link');
+  miloStyles.setAttribute('as', 'style');
+  miloStyles.setAttribute('href', `${libs}/styles/styles.css`);
+  miloStyles.setAttribute('rel', 'preload');
+
+  const preloads = [
+    `${miloLibs}/deps/imslib.min.js`,
+    `${miloLibs}/utils/utils.js`,
+    `${miloLibs}/martech/martech.js`,
+    `${miloLibs}/utils/decorate.js`,
+  ];
+
+  const scriptLinks = preloads.map(s => {
+    const link = document.createElement('link');
+    link.setAttribute('rel', 'preload');
+    link.setAttribute('crossorigin', 'true');
+    link.setAttribute('as', 'script');
+    link.setAttribute('href', s);
+    return link;
+  });
+
+  document.head.append(miloStyles, ...scriptLinks);
+
   // in case scripts.js fails to remove.
   setTimeout(function() {
       document.getElementById('ims-body-style')?.remove();
