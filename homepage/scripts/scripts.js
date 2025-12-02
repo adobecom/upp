@@ -281,6 +281,7 @@ function loadStyles() {
   }
 
   imsCheck().then(isSignedInUser => {
+    if (window.location.pathname.includes('/plans')) return;
     const signedInCookie = isStage ? getCookie(ACOM_SIGNED_IN_STATUS_STAGE) : getCookie(ACOM_SIGNED_IN_STATUS);
     const redirectUri = getRedirectUri();
     if (redirectUri) window.adobeIMS.adobeIdData.redirect_uri = redirectUri;
