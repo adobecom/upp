@@ -145,7 +145,7 @@ const stageDomainsMap = {
   '.business-graybox.adobe.com': { 'business.stage.adobe.com': 'origin' },
 };
 
-// Add any config options.
+// Add any config options...
 const CONFIG = {
   ...ENVS,
   chimeraOrigin: 'homepage',
