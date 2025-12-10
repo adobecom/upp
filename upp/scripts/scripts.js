@@ -162,7 +162,13 @@ const CONFIG = {
     id: 'homepage_loggedout_default',
     version: '1.83',
     onDemand: true,
-  }
+  },
+  htmlExclude: [
+    /www\.adobe\.com\/(\w\w(_\w\w)?\/)?express(\/.*)?/,
+    /www\.adobe\.com\/(\w\w(_\w\w)?\/)?go(\/.*)?/,
+    /www\.adobe\.com\/(\w\w(_\w\w)?\/)?learn(\/.*)?/,
+    /www\.adobe\.com\/(\w\w(_\w\w)?\/)?benefits(\/.*)?/,
+  ]
 };
 
 /*
