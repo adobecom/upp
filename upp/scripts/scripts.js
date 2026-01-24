@@ -265,7 +265,7 @@ function loadStyles() {
   });
 }
 
-(async function loadPage() {
+async function loadPage() {
   loadStyles();
   const { loadArea, setConfig, loadLana } = await import(`${miloLibs}/utils/utils.js`);
   setConfig({ ...CONFIG, miloLibs });
@@ -325,7 +325,9 @@ function loadStyles() {
   observer.observe(document.querySelector('footer'), { childList: true, subtree: true });
 
   await loadAreaPromise;
-}());
+}
+
+loadPage();
 
 (async function loadDa() {
   if (!new URL(window.location.href).searchParams.get('dapreview')) return;
