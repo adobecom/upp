@@ -195,13 +195,13 @@ function decorateArea(area = document, options = {}) {
   };
 
   replaceDotMedia(area);
-  
+
   (function loadLCPImage() {
     const { fragmentLink } = options;
     const lcpImg = area.querySelector('img');
     const documentHasEagerImg = document.querySelector('img[fetchpriority="high"]');
     if (!lcpImg || documentHasEagerImg) return;
-    
+
     // For fragment LCP
     if (fragmentLink) {
       const isFirstFragment = fragmentLink === document.querySelector('a.fragment');
@@ -210,7 +210,7 @@ function decorateArea(area = document, options = {}) {
         return;
       }
     }
-    
+
     // For non-fragment
     const sectionMetadataBg = area.querySelector('main > div:first-child > .section-metadata img');
     if (sectionMetadataBg) {
@@ -234,7 +234,7 @@ async function imsCheck() {
   const { host, pathname } = window.location;
   // no need to check IMS for these cases:
   if (!host.includes('adobe.com') || pathname.split('/').at(-1).startsWith('media_')) return false;
-  
+
   const { loadIms, setConfig } = await import(`${miloLibs}/utils/utils.js`);
   setConfig({ ...CONFIG, miloLibs });
   let isSignedInUser = false;
@@ -254,8 +254,18 @@ async function imsCheck() {
   return isSignedInUser;
 }
 
+function getMetadata(name, doc = document) {
+  const attr = name && name.includes(':') ? 'property' : 'name';
+  const meta = doc.head.querySelector(`meta[${attr}="${name}"]`);
+  return meta && meta.content;
+}
+
 function loadStyles() {
-  const paths = [`${miloLibs}/styles/styles.css`];
+  const paths = [];
+  const stylesPrefix = getMetadata('foundation') === 'c2' ? '/c2' : '';
+  paths.push(`${miloLibs}${stylesPrefix}/styles/styles.css`);
+  const skin = getMetadata('skin');
+  if (skin) paths.push(`${miloLibs}/styles/skins/${skin}.css`);
   if (STYLES) { paths.push(STYLES); }
   paths.forEach((path) => {
     const link = document.createElement('link');
@@ -270,19 +280,19 @@ async function loadPage() {
   const { loadArea, setConfig, loadLana } = await import(`${miloLibs}/utils/utils.js`);
   setConfig({ ...CONFIG, miloLibs });
   loadLana({ clientId: 'homepage' });
-  
+
   const loadAreaPromise = loadArea();
   const isStage = window.location.host.includes('stage');
-  
+
   const getRedirectUri = () => {
     if (!window.adobeIMS) return '';
 
     const baseURL = `${isStage ? 'https://www.stage.adobe.com' : 'https://www.adobe.com'}`;
     const pathname = window.location.pathname.slice(1, -1);
-    
+
     // China & SEA should not redirect
     if (pathname === 'cn' || pathname === 'sea') return '';
-    
+
     // return with ?acomLocale parameter if it is not root
     return `${baseURL}/home${pathname ? `?acomLocale=${pathname}` : ''}`;
   }
@@ -293,7 +303,7 @@ async function loadPage() {
     const signedInCookie = isStage ? getCookie(ACOM_SIGNED_IN_STATUS_STAGE) : getCookie(ACOM_SIGNED_IN_STATUS);
     const redirectUri = getRedirectUri();
     if (redirectUri) window.adobeIMS.adobeIdData.redirect_uri = redirectUri;
-    
+
     if (isSignedInUser && !signedInCookie) {
       const date = new Date();
       date.setTime(date.getTime() + (365*24*60*60*1000));
@@ -313,7 +323,7 @@ async function loadPage() {
       window.location.reload();
     }
   });
-  
+
   // for media_ update for feds
   const observeCallback = (mutationList, observer) => {
     for (const mutation of mutationList) {
