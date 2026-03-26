@@ -30,7 +30,7 @@ const locales = {
   ar: { ietf: 'es-AR', tk: 'oln4yqj.css' },
   br: { ietf: 'pt-BR', tk: 'inq1xob.css' },
   ca: { ietf: 'en-CA', tk: 'pps7abe.css' },
-  ca_fr: { ietf: 'fr-CA', tk: 'vrk5vyv.css' },
+  ca_fr: { ietf: 'fr-CA', tk: 'vrk5vyv.css', base: 'fr' },
   cl: { ietf: 'es-CL', tk: 'oln4yqj.css' },
   co: { ietf: 'es-CO', tk: 'oln4yqj.css' },
   la: { ietf: 'es-DO', tk: 'oln4yqj.css' },
@@ -39,7 +39,7 @@ const locales = {
   '': { ietf: 'en-US', tk: 'hah7vzn.css' },
   // EMEA
   africa: { ietf: 'en', tk: 'pps7abe.css' },
-  be_fr: { ietf: 'fr-BE', tk: 'vrk5vyv.css' },
+  be_fr: { ietf: 'fr-BE', tk: 'vrk5vyv.css', base: 'fr' },
   be_en: { ietf: 'en-BE', tk: 'pps7abe.css' },
   be_nl: { ietf: 'nl-BE', tk: 'cya6bri.css' },
   cy_en: { ietf: 'en-CY', tk: 'pps7abe.css' },
@@ -56,7 +56,7 @@ const locales = {
   lt: { ietf: 'lt-LT', tk: 'aaz7dvd.css' },
   lu_de: { ietf: 'de-LU', tk: 'vin7zsi.css' },
   lu_en: { ietf: 'en-LU', tk: 'pps7abe.css' },
-  lu_fr: { ietf: 'fr-LU', tk: 'vrk5vyv.css' },
+  lu_fr: { ietf: 'fr-LU', tk: 'vrk5vyv.css', base: 'fr' },
   hu: { ietf: 'hu-HU', tk: 'aaz7dvd.css' },
   mt: { ietf: 'en-MT', tk: 'pps7abe.css' },
   mena_en: { ietf: 'en', tk: 'pps7abe.css' },
@@ -69,7 +69,7 @@ const locales = {
   ch_de: { ietf: 'de-CH', tk: 'vin7zsi.css' },
   si: { ietf: 'sl-SI', tk: 'aaz7dvd.css' },
   sk: { ietf: 'en-SK', tk: 'aaz7dvd.css' },
-  ch_fr: { ietf: 'fr-CH', tk: 'vrk5vyv.css' },
+  ch_fr: { ietf: 'fr-CH', tk: 'vrk5vyv.css', base: 'fr' },
   fi: { ietf: 'fi-FI', tk: 'aaz7dvd.css' },
   se: { ietf: 'sv-SE', tk: 'fpk1pcd.css' },
   ch_it: { ietf: 'it-CH', tk: 'bbf5pok.css' },
@@ -170,6 +170,12 @@ const CONFIG = {
     /www\.adobe\.com\/(\w\w(_\w\w)?\/)?benefits(\/.*)?/,
     /www\.adobe\.com\/(\w\w(_\w\w)?\/)?download(\/.*)?/,
   ],
+  uniqueSiteId: 'upp',
+  mepLingoCountryToRegion: {
+    africa: ['ke', 'mu', 'ng', 'za'],
+    la: ['bo', 'cr', 'do', 'ec', 'gt', 'pa', 'pr', 'py', 'sv', 'uy', 've', 'ar', 'co', 'cl', 'mx', 'pe'],
+    mena_en: ['bh', 'dz', 'iq', 'ir', 'jo', 'lb', 'ly', 'om', 'ps', 'sy', 'tn', 'ye'],
+  },
 };
 
 /*
@@ -253,8 +259,18 @@ async function imsCheck() {
   return isSignedInUser;
 }
 
+function getMetadata(name, doc = document) {
+  const attr = name && name.includes(':') ? 'property' : 'name';
+  const meta = doc.head.querySelector(`meta[${attr}="${name}"]`);
+  return meta && meta.content;
+}
+
 function loadStyles() {
-  const paths = [`${miloLibs}/styles/styles.css`];
+  const paths = [];
+  const stylesPrefix = getMetadata('foundation') === 'c2' ? '/c2' : '';
+  paths.push(`${miloLibs}${stylesPrefix}/styles/styles.css`);
+  const skin = getMetadata('skin');
+  if (skin) paths.push(`${miloLibs}/styles/skins/${skin}.css`);
   if (STYLES) { paths.push(STYLES); }
   paths.forEach((path) => {
     const link = document.createElement('link');
