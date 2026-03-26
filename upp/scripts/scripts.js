@@ -14,12 +14,12 @@ import { setLibs } from './utils.js';
 
 const ACOM_SIGNED_IN_STATUS = 'acomsis';
 const ACOM_SIGNED_IN_STATUS_STAGE = 'acomsis_stage';
-const STYLES = '/homepage/styles/styles.css';
+const STYLES = '/upp/styles/styles.css';
 const LIBS = '/libs';
 const ENVS = {
   stage: { edgeConfigId: 'e065836d-be57-47ef-b8d1-999e1657e8fd' },
-  prod: { edgeConfigId: '913eac4d-900b-45e8-9ee7-306216765cd2' }
-}
+  prod: { edgeConfigId: '913eac4d-900b-45e8-9ee7-306216765cd2' },
+};
 ENVS.local = {
   ...ENVS.stage,
   name: 'local',
@@ -228,7 +228,6 @@ function decorateArea(area = document, options = {}) {
 }
 decorateArea();
 
-
 const miloLibs = setLibs(LIBS);
 
 const getCookie = (name) => document.cookie
@@ -251,7 +250,7 @@ async function imsCheck() {
       // validate token rejects and falls into the following catch block.
       isSignedInUser = true;
     }
-  } catch(e) {
+  } catch (e) {
     window.lana?.log('Homepage IMS check failed', e);
   }
   if (!isSignedInUser) {
@@ -301,9 +300,9 @@ async function loadPage() {
 
     // return with ?acomLocale parameter if it is not root
     return `${baseURL}/home${pathname ? `?acomLocale=${pathname}` : ''}`;
-  }
+  };
 
-  imsCheck().then(isSignedInUser => {
+  imsCheck().then((isSignedInUser) => {
     if (window.location.pathname.includes('/plans')) return;
     if (window.location.pathname.includes('/catalog')) return;
     const signedInCookie = isStage ? getCookie(ACOM_SIGNED_IN_STATUS_STAGE) : getCookie(ACOM_SIGNED_IN_STATUS);
@@ -312,7 +311,7 @@ async function loadPage() {
 
     if (isSignedInUser && !signedInCookie) {
       const date = new Date();
-      date.setTime(date.getTime() + (365*24*60*60*1000));
+      date.setTime(date.getTime() + (365 * 24 * 60 * 60 * 1000));
       document.cookie = `${isStage ? ACOM_SIGNED_IN_STATUS_STAGE : ACOM_SIGNED_IN_STATUS}=1;path=/;expires=${date.toUTCString()};domain=${isStage ? 'www.stage.' : ''}adobe.com;`;
       window.location.reload();
     }
