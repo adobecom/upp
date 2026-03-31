@@ -342,6 +342,13 @@ async function loadPage() {
   await loadAreaPromise;
 }
 
+const shouldSkipImsCheck = new URLSearchParams(window.location.search)
+  ?.get('skip-ims-check') === 'true';
+
+if (shouldSkipImsCheck) {
+  document.getElementById('ims-body-style')?.remove();
+}
+
 loadPage();
 
 (async function loadDa() {
