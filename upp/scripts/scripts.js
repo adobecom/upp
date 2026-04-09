@@ -240,6 +240,14 @@ async function imsCheck() {
   // no need to check IMS for these cases:
   if (!host.includes('adobe.com') || pathname.split('/').at(-1).startsWith('media_')) return false;
 
+  // Use Server Timing to retrieve logged-in status and avoid IMS calls.
+  const serverTiming = window.performance?.getEntriesByType('navigation')?.[0]?.serverTiming?.reduce(
+    (acc, { name, description }) => ({ ...acc, [name]: description }),
+    {},
+  );
+
+  if (serverTiming.sis !== undefined) return serverTiming.sis === '1';
+
   const { loadIms, setConfig } = await import(`${miloLibs}/utils/utils.js`);
   setConfig({ ...CONFIG, miloLibs });
   let isSignedInUser = false;
