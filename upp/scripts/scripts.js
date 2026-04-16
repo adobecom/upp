@@ -237,21 +237,8 @@ const getCookie = (name) => document.cookie
 
 async function imsCheck() {
   const { host, pathname } = window.location;
-  const showContent = () => document.getElementById('ims-body-style')?.remove();
-  
   // no need to check IMS for these cases:
   if (!host.includes('adobe.com') || pathname.split('/').at(-1).startsWith('media_')) return false;
-  // Use Server Timing to retrieve logged-in status and avoid IMS calls.
-  const serverTiming = window.performance?.getEntriesByType('navigation')?.[0]?.serverTiming?.reduce(
-    (acc, { name, description }) => ({ ...acc, [name]: description }),
-    {},
-  );
-
-  if (serverTiming.sis !== undefined) {
-    const isSignedInFromHeader = serverTiming.sis === '1';
-    if (!isSignedInFromHeader) showContent();
-    return isSignedInFromHeader;
-  }
 
   const { loadIms, setConfig } = await import(`${miloLibs}/utils/utils.js`);
   setConfig({ ...CONFIG, miloLibs });
@@ -266,7 +253,9 @@ async function imsCheck() {
   } catch (e) {
     window.lana?.log('Homepage IMS check failed', e);
   }
-  if (!isSignedInUser) showContent();
+  if (!isSignedInUser) {
+    document.getElementById('ims-body-style')?.remove();
+  }
   return isSignedInUser;
 }
 
