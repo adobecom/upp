@@ -307,11 +307,22 @@ async function loadPage() {
     if (window.location.pathname.includes('/catalog')) return;
     const signedInCookie = isStage ? getCookie(ACOM_SIGNED_IN_STATUS_STAGE) : getCookie(ACOM_SIGNED_IN_STATUS);
 
+    // Milo's loadIms (run inside imsCheck) sets window.adobeid.redirect_uri to the
+    // lingo-aware /home URL when adobe-home-redirect=on. Use it directly for the
+    // signed-in /home bounce so we bypass Akamai WPS-25058, which is path-based
+    // and would replace acomLocale=ca_fr with acomLocale=fr. Fall back to reload
+    // for cn/sea (redirect_uri points at the locale homepage, not /home).
+    const ahomeUrl = window.adobeid?.redirect_uri;
+    const goToAhome = () => {
+      if (ahomeUrl?.includes('/home')) window.location.href = ahomeUrl;
+      else window.location.reload();
+    };
+
     if (isSignedInUser && !signedInCookie) {
       const date = new Date();
       date.setTime(date.getTime() + (365 * 24 * 60 * 60 * 1000));
       document.cookie = `${isStage ? ACOM_SIGNED_IN_STATUS_STAGE : ACOM_SIGNED_IN_STATUS}=1;path=/;expires=${date.toUTCString()};domain=${isStage ? 'www.stage.' : ''}adobe.com;`;
-      window.location.reload();
+      goToAhome();
     }
     if (!isSignedInUser && signedInCookie) {
       if (!isStage) {
@@ -323,7 +334,7 @@ async function loadPage() {
       window.location.reload();
     }
     if (signedInCookie && isSignedInUser && !window.location.href.includes('/fragments/')) {
-      window.location.reload();
+      goToAhome();
     }
   });
 
