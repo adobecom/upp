@@ -14,12 +14,12 @@ import { setLibs } from './utils.js';
 
 const ACOM_SIGNED_IN_STATUS = 'acomsis';
 const ACOM_SIGNED_IN_STATUS_STAGE = 'acomsis_stage';
-const STYLES = '/homepage/styles/styles.css';
+const STYLES = '/upp/styles/styles.css';
 const LIBS = '/libs';
 const ENVS = {
   stage: { edgeConfigId: 'e065836d-be57-47ef-b8d1-999e1657e8fd' },
-  prod: { edgeConfigId: '913eac4d-900b-45e8-9ee7-306216765cd2' }
-}
+  prod: { edgeConfigId: '913eac4d-900b-45e8-9ee7-306216765cd2' },
+};
 ENVS.local = {
   ...ENVS.stage,
   name: 'local',
@@ -30,7 +30,7 @@ const locales = {
   ar: { ietf: 'es-AR', tk: 'oln4yqj.css' },
   br: { ietf: 'pt-BR', tk: 'inq1xob.css' },
   ca: { ietf: 'en-CA', tk: 'pps7abe.css' },
-  ca_fr: { ietf: 'fr-CA', tk: 'vrk5vyv.css' },
+  ca_fr: { ietf: 'fr-CA', tk: 'vrk5vyv.css', base: 'fr' },
   cl: { ietf: 'es-CL', tk: 'oln4yqj.css' },
   co: { ietf: 'es-CO', tk: 'oln4yqj.css' },
   la: { ietf: 'es-DO', tk: 'oln4yqj.css' },
@@ -39,7 +39,7 @@ const locales = {
   '': { ietf: 'en-US', tk: 'hah7vzn.css' },
   // EMEA
   africa: { ietf: 'en', tk: 'pps7abe.css' },
-  be_fr: { ietf: 'fr-BE', tk: 'vrk5vyv.css' },
+  be_fr: { ietf: 'fr-BE', tk: 'vrk5vyv.css', base: 'fr' },
   be_en: { ietf: 'en-BE', tk: 'pps7abe.css' },
   be_nl: { ietf: 'nl-BE', tk: 'cya6bri.css' },
   cy_en: { ietf: 'en-CY', tk: 'pps7abe.css' },
@@ -56,7 +56,7 @@ const locales = {
   lt: { ietf: 'lt-LT', tk: 'aaz7dvd.css' },
   lu_de: { ietf: 'de-LU', tk: 'vin7zsi.css' },
   lu_en: { ietf: 'en-LU', tk: 'pps7abe.css' },
-  lu_fr: { ietf: 'fr-LU', tk: 'vrk5vyv.css' },
+  lu_fr: { ietf: 'fr-LU', tk: 'vrk5vyv.css', base: 'fr' },
   hu: { ietf: 'hu-HU', tk: 'aaz7dvd.css' },
   mt: { ietf: 'en-MT', tk: 'pps7abe.css' },
   mena_en: { ietf: 'en', tk: 'pps7abe.css' },
@@ -69,7 +69,7 @@ const locales = {
   ch_de: { ietf: 'de-CH', tk: 'vin7zsi.css' },
   si: { ietf: 'sl-SI', tk: 'aaz7dvd.css' },
   sk: { ietf: 'en-SK', tk: 'aaz7dvd.css' },
-  ch_fr: { ietf: 'fr-CH', tk: 'vrk5vyv.css' },
+  ch_fr: { ietf: 'fr-CH', tk: 'vrk5vyv.css', base: 'fr' },
   fi: { ietf: 'fi-FI', tk: 'aaz7dvd.css' },
   se: { ietf: 'sv-SE', tk: 'fpk1pcd.css' },
   ch_it: { ietf: 'it-CH', tk: 'bbf5pok.css' },
@@ -169,7 +169,13 @@ const CONFIG = {
     /www\.adobe\.com\/(\w\w(_\w\w)?\/)?learn(\/.*)?/,
     /www\.adobe\.com\/(\w\w(_\w\w)?\/)?benefits(\/.*)?/,
     /www\.adobe\.com\/(\w\w(_\w\w)?\/)?download(\/.*)?/,
-  ]
+  ],
+  uniqueSiteId: 'upp',
+  mepLingoCountryToRegion: {
+    africa: ['ke', 'mu', 'ng', 'za'],
+    la: ['bo', 'cr', 'do', 'ec', 'gt', 'pa', 'pr', 'py', 'sv', 'uy', 've', 'ar', 'co', 'cl', 'mx', 'pe'],
+    mena_en: ['bh', 'dz', 'iq', 'ir', 'jo', 'lb', 'ly', 'om', 'ps', 'sy', 'tn', 'ye'],
+  },
 };
 
 /*
@@ -222,7 +228,6 @@ function decorateArea(area = document, options = {}) {
 }
 decorateArea();
 
-
 const miloLibs = setLibs(LIBS);
 
 const getCookie = (name) => document.cookie
@@ -245,7 +250,7 @@ async function imsCheck() {
       // validate token rejects and falls into the following catch block.
       isSignedInUser = true;
     }
-  } catch(e) {
+  } catch (e) {
     window.lana?.log('Homepage IMS check failed', e);
   }
   if (!isSignedInUser) {
@@ -277,6 +282,19 @@ function loadStyles() {
 
 async function loadPage() {
   loadStyles();
+
+  // Signal to milo's loadIms that this is an Adobe Home redirect page, so it sets
+  // adobeid.redirect_uri to /home?acomLocale=<region> (lingo-aware via getLingoRegion).
+  // Excludes /plans and /catalog, which intentionally stay on-page after sign-in.
+  // TODO: remove once 'adobe-home-redirect' metadata is authored on UPP page content.
+  const path = window.location.pathname;
+  if (!path.includes('/plans') && !path.includes('/catalog')) {
+    const ahomeMeta = document.createElement('meta');
+    ahomeMeta.name = 'adobe-home-redirect';
+    ahomeMeta.content = 'on';
+    document.head.appendChild(ahomeMeta);
+  }
+
   const { loadArea, setConfig, loadLana } = await import(`${miloLibs}/utils/utils.js`);
   setConfig({ ...CONFIG, miloLibs });
   loadLana({ clientId: 'homepage' });
@@ -284,29 +302,14 @@ async function loadPage() {
   const loadAreaPromise = loadArea();
   const isStage = window.location.host.includes('stage');
 
-  const getRedirectUri = () => {
-    if (!window.adobeIMS) return '';
-
-    const baseURL = `${isStage ? 'https://www.stage.adobe.com' : 'https://www.adobe.com'}`;
-    const pathname = window.location.pathname.slice(1, -1);
-
-    // China & SEA should not redirect
-    if (pathname === 'cn' || pathname === 'sea') return '';
-
-    // return with ?acomLocale parameter if it is not root
-    return `${baseURL}/home${pathname ? `?acomLocale=${pathname}` : ''}`;
-  }
-
-  imsCheck().then(isSignedInUser => {
+  imsCheck().then((isSignedInUser) => {
     if (window.location.pathname.includes('/plans')) return;
     if (window.location.pathname.includes('/catalog')) return;
     const signedInCookie = isStage ? getCookie(ACOM_SIGNED_IN_STATUS_STAGE) : getCookie(ACOM_SIGNED_IN_STATUS);
-    const redirectUri = getRedirectUri();
-    if (redirectUri) window.adobeIMS.adobeIdData.redirect_uri = redirectUri;
 
     if (isSignedInUser && !signedInCookie) {
       const date = new Date();
-      date.setTime(date.getTime() + (365*24*60*60*1000));
+      date.setTime(date.getTime() + (365 * 24 * 60 * 60 * 1000));
       document.cookie = `${isStage ? ACOM_SIGNED_IN_STATUS_STAGE : ACOM_SIGNED_IN_STATUS}=1;path=/;expires=${date.toUTCString()};domain=${isStage ? 'www.stage.' : ''}adobe.com;`;
       window.location.reload();
     }
