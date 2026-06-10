@@ -286,7 +286,9 @@ async function loadPage() {
   // Signal to milo's loadIms that this is an Adobe Home redirect page, so it sets
   // adobeid.redirect_uri to /home?acomLocale=<region> (lingo-aware via getLingoRegion).
   // Excludes /plans and /catalog, which intentionally stay on-page after sign-in.
-  // TODO: remove once 'adobe-home-redirect' metadata is authored on UPP page content.
+  // Interim mechanism (MWPW-194172): inject the flag client-side until the
+  // 'adobe-home-redirect' metadata is authored on UPP page content, after which
+  // this block can be removed in favour of the authored meta.
   const path = window.location.pathname;
   if (!path.includes('/plans') && !path.includes('/catalog')) {
     const ahomeMeta = document.createElement('meta');
