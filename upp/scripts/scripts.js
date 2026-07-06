@@ -303,7 +303,6 @@ async function loadPage() {
     if (window.location.pathname.includes('/plans')) return;
     if (window.location.pathname.includes('/catalog')) return;
     const signedInCookie = isStage ? getCookie(ACOM_SIGNED_IN_STATUS_STAGE) : getCookie(ACOM_SIGNED_IN_STATUS);
-
     const ahomeUrl = window.adobeid?.redirect_uri;
     const goToAhome = () => {
       if (ahomeUrl?.includes('/home')) window.location.href = ahomeUrl;
