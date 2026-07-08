@@ -38,6 +38,8 @@
     "sinon": "13.0.1",
     "stylelint": "14.6.0",
     "stylelint-config-prettier": "9.0.3",
-    "stylelint-config-standard": "25.0.0"
+    "stylelint-config-standard": "25.0.0",
+    "dotenv": "^17.4.0",
+    "form-data": "^4.0.5"
   }
 }

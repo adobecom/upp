@@ -81,10 +81,10 @@ const locales = {
   bg: { ietf: 'bg-BG', tk: 'aaz7dvd.css' },
   ru: { ietf: 'ru-RU', tk: 'aaz7dvd.css' },
   ua: { ietf: 'uk-UA', tk: 'aaz7dvd.css' },
-  il_he: { ietf: 'he', tk: 'nwq1mna.css', dir: 'rtl' },
-  ae_ar: { ietf: 'ar', tk: 'nwq1mna.css', dir: 'rtl' },
+  il_he: { ietf: 'he', tk: 'nle2tdz.css', dir: 'rtl' },
+  ae_ar: { ietf: 'ar', tk: 'dis2dpj.css', dir: 'rtl' },
   mena_ar: { ietf: 'ar', tk: 'dis2dpj.css', dir: 'rtl' },
-  sa_ar: { ietf: 'ar', tk: 'nwq1mna.css', dir: 'rtl' },
+  sa_ar: { ietf: 'ar', tk: 'dis2dpj.css', dir: 'rtl' },
   // Asia Pacific
   au: { ietf: 'en-AU', tk: 'pps7abe.css' },
   hk_en: { ietf: 'en-HK', tk: 'pps7abe.css' },
@@ -99,7 +99,7 @@ const locales = {
   sg: { ietf: 'en-SG', tk: 'pps7abe.css' },
   th_en: { ietf: 'en', tk: 'pps7abe.css' },
   in_hi: { ietf: 'hi', tk: 'aaa8deh.css' },
-  th_th: { ietf: 'th', tk: 'aaz7dvd.css' },
+  th_th: { ietf: 'th', tk: 'lqo2bst.css' },
   cn: { ietf: 'zh-CN', tk: 'puu3xkp' },
   hk_zh: { ietf: 'zh-HK', tk: 'jay0ecd' },
   tw: { ietf: 'zh-TW', tk: 'jay0ecd' },
@@ -114,9 +114,9 @@ const locales = {
   ec: { ietf: 'es-EC', tk: 'oln4yqj.css' }, // Ecuador (Spanish Latin America)
   pr: { ietf: 'es-US', tk: 'oln4yqj.css' }, // Puerto Rico (Spanish Latin America)
   gt: { ietf: 'es-GT', tk: 'oln4yqj.css' }, // Guatemala (Spanish Latin America)
-  eg_ar: { ietf: 'ar', tk: 'nwq1mna.css', dir: 'rtl' }, // Egypt (Arabic)
-  kw_ar: { ietf: 'ar', tk: 'nwq1mna.css', dir: 'rtl' }, // Kuwait (Arabic)
-  qa_ar: { ietf: 'ar', tk: 'nwq1mna.css', dir: 'rtl' }, // Quatar (Arabic)
+  eg_ar: { ietf: 'ar', tk: 'dis2dpj.css', dir: 'rtl' }, // Egypt (Arabic)
+  kw_ar: { ietf: 'ar', tk: 'dis2dpj.css', dir: 'rtl' }, // Kuwait (Arabic)
+  qa_ar: { ietf: 'ar', tk: 'dis2dpj.css', dir: 'rtl' }, // Quatar (Arabic)
   eg_en: { ietf: 'en-GB', tk: 'pps7abe.css' }, // Egypt (GB English)
   kw_en: { ietf: 'en-GB', tk: 'pps7abe.css' }, // Kuwait (GB English)
   qa_en: { ietf: 'en-GB', tk: 'pps7abe.css' }, // Qatar (GB English)
@@ -282,6 +282,16 @@ function loadStyles() {
 
 async function loadPage() {
   loadStyles();
+
+  const path = window.location.pathname;
+  if (!path.includes('/plans') && !path.includes('/catalog')
+    && !document.querySelector('meta[name="adobe-home-redirect"]')) {
+    const ahomeMeta = document.createElement('meta');
+    ahomeMeta.name = 'adobe-home-redirect';
+    ahomeMeta.content = 'on';
+    document.head.appendChild(ahomeMeta);
+  }
+
   const { loadArea, setConfig, loadLana } = await import(`${miloLibs}/utils/utils.js`);
   setConfig({ ...CONFIG, miloLibs });
   loadLana({ clientId: 'homepage' });
@@ -289,31 +299,21 @@ async function loadPage() {
   const loadAreaPromise = loadArea();
   const isStage = window.location.host.includes('stage');
 
-  const getRedirectUri = () => {
-    if (!window.adobeIMS) return '';
-
-    const baseURL = `${isStage ? 'https://www.stage.adobe.com' : 'https://www.adobe.com'}`;
-    const pathname = window.location.pathname.slice(1, -1);
-
-    // China & SEA should not redirect
-    if (pathname === 'cn' || pathname === 'sea') return '';
-
-    // return with ?acomLocale parameter if it is not root
-    return `${baseURL}/home${pathname ? `?acomLocale=${pathname}` : ''}`;
-  };
-
   imsCheck().then((isSignedInUser) => {
     if (window.location.pathname.includes('/plans')) return;
     if (window.location.pathname.includes('/catalog')) return;
     const signedInCookie = isStage ? getCookie(ACOM_SIGNED_IN_STATUS_STAGE) : getCookie(ACOM_SIGNED_IN_STATUS);
-    const redirectUri = getRedirectUri();
-    if (redirectUri) window.adobeIMS.adobeIdData.redirect_uri = redirectUri;
+    const ahomeUrl = window.adobeid?.redirect_uri;
+    const goToAhome = () => {
+      if (ahomeUrl?.includes('/home')) window.location.href = ahomeUrl;
+      else window.location.reload();
+    };
 
     if (isSignedInUser && !signedInCookie) {
       const date = new Date();
       date.setTime(date.getTime() + (365 * 24 * 60 * 60 * 1000));
       document.cookie = `${isStage ? ACOM_SIGNED_IN_STATUS_STAGE : ACOM_SIGNED_IN_STATUS}=1;path=/;expires=${date.toUTCString()};domain=${isStage ? 'www.stage.' : ''}adobe.com;`;
-      window.location.reload();
+      goToAhome();
     }
     if (!isSignedInUser && signedInCookie) {
       if (!isStage) {
@@ -325,7 +325,7 @@ async function loadPage() {
       window.location.reload();
     }
     if (signedInCookie && isSignedInUser && !window.location.href.includes('/fragments/')) {
-      window.location.reload();
+      goToAhome();
     }
   });
 
