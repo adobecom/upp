@@ -68,7 +68,7 @@ const locales = {
   sa_en: { ietf: 'en', tk: 'pps7abe.css', base: '' },
   ch_de: { ietf: 'de-CH', tk: 'vin7zsi.css' },
   si: { ietf: 'sl-SI', tk: 'aaz7dvd.css' },
-  sk: { ietf: 'en-SK', tk: 'aaz7dvd.css' },
+  sk: { ietf: 'sk-SK', tk: 'aaz7dvd.css' },
   ch_fr: { ietf: 'fr-CH', tk: 'vrk5vyv.css', base: 'fr' },
   fi: { ietf: 'fi-FI', tk: 'aaz7dvd.css' },
   se: { ietf: 'sv-SE', tk: 'fpk1pcd.css' },
