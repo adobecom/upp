@@ -223,7 +223,29 @@ function decorateArea(area = document, options = {}) {
       lcpImageUpdate(sectionMetadataBg);
       return;
     }
-    lcpImageUpdate(lcpImg);
+
+    // If the LCP image's block varies media by viewport (mobile-viewport /
+    // tablet-viewport / desktop-viewport keyword rows), prioritize the active
+    // viewport's image (falling back to a lower viewport when one is omitted);
+    // skip when that viewport has no image (e.g. a video hero, whose poster is
+    // the LCP). Otherwise mark the LCP image as-is.
+    const VIEWPORTS = ['mobile', 'tablet', 'desktop'];
+    const viewportRank = (row) => (row.children.length === 1
+      ? VIEWPORTS.indexOf(row.children[0].textContent.trim().toLowerCase().split(/[ (]/)[0].replace('-viewport', ''))
+      : -1);
+    let block = lcpImg;
+    while (block && ![...block.children].some((row) => viewportRank(row) >= 0)) block = block.parentElement;
+    if (!block) { lcpImageUpdate(lcpImg); return; }
+    const rows = [...block.children];
+    const activeRank = innerWidth >= 1280 ? 2 : (innerWidth >= 768 ? 1 : 0);
+    let sectionStart = -1;
+    for (let rank = activeRank; sectionStart < 0 && rank >= 0; rank -= 1) {
+      sectionStart = rows.findIndex((row) => viewportRank(row) === rank);
+    }
+    for (let i = sectionStart + 1; i < rows.length && viewportRank(rows[i]) < 0; i += 1) {
+      const img = rows[i].querySelector('img');
+      if (img) { lcpImageUpdate(img); break; }
+    }
   }());
 }
 decorateArea();
