@@ -36,7 +36,7 @@ const locales = {
   la: { ietf: 'es-DO', tk: 'oln4yqj.css' },
   mx: { ietf: 'es-MX', tk: 'oln4yqj.css' },
   pe: { ietf: 'es-PE', tk: 'oln4yqj.css' },
-  '': { ietf: 'en-US', tk: 'hah7vzn.css', base: '' },
+  '': { ietf: 'en-US', tk: 'hah7vzn.css' },
   // EMEA
   africa: { ietf: 'en', tk: 'pps7abe.css', base: '' },
   be_fr: { ietf: 'fr-BE', tk: 'vrk5vyv.css', base: 'fr' },
@@ -175,6 +175,7 @@ const CONFIG = {
     africa: ['ke', 'mu', 'ng', 'za'],
     la: ['ag', 'ar', 'bo', 'cl', 'co', 'cr', 'cu', 'do', 'ec', 'gt', 'hn', 'mx', 'ni', 'pa', 'pe', 'pr', 'py', 'sv', 'uy', 've'],
     mena_en: ['ae', 'af', 'bh', 'dz', 'eg', 'iq', 'ir', 'jo', 'kw', 'lb', 'ly', 'ma', 'om', 'ps', 'qa', 'sa', 'sy', 'tn', 'ye'],
+    cis_en: ['am', 'az', 'ge', 'kz', 'kg', 'md', 'tj', 'tm', 'uz'],
   },
 };
 
