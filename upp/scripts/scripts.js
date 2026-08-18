@@ -225,28 +225,45 @@ function decorateArea(area = document, options = {}) {
       return;
     }
 
-    // If the LCP image's block varies media by viewport (mobile-viewport /
-    // tablet-viewport / desktop-viewport keyword rows), prioritize the active
-    // viewport's image (falling back to a lower viewport when one is omitted);
-    // skip when that viewport has no image (e.g. a video hero, whose poster is
-    // the LCP). Otherwise mark the LCP image as-is.
     const VIEWPORTS = ['mobile', 'tablet', 'desktop'];
-    const viewportRank = (row) => (row.children.length === 1
+    const vpDelimiterIndex = (row) => (row.children.length === 1
       ? VIEWPORTS.indexOf(row.children[0].textContent.trim().toLowerCase().split(/[ (]/)[0].replace('-viewport', ''))
-      : -1);
-    let block = lcpImg;
-    while (block && ![...block.children].some((row) => viewportRank(row) >= 0)) block = block.parentElement;
-    if (!block) { lcpImageUpdate(lcpImg); return; }
-    const rows = [...block.children];
-    const activeRank = innerWidth >= 1280 ? 2 : (innerWidth >= 768 ? 1 : 0);
-    let sectionStart = -1;
-    for (let rank = activeRank; sectionStart < 0 && rank >= 0; rank -= 1) {
-      sectionStart = rows.findIndex((row) => viewportRank(row) === rank);
+        : -1);
+    const lcpBlock = lcpImg.closest('main > div > div');
+    if (!lcpBlock) { 
+      lcpImageUpdate(lcpImg);
+      return;
     }
-    for (let i = sectionStart + 1; i < rows.length && viewportRank(rows[i]) < 0; i += 1) {
-      const img = rows[i].querySelector('img');
-      if (img) { lcpImageUpdate(img); break; }
+    const hasDifferentViewports = [...lcpBlock.children]
+    .some((child) => vpDelimiterIndex(child) !== -1);
+
+    let activeViewportIndex = 0;
+    if (window.matchMedia('(min-width: 1280px)').matches) activeViewportIndex = 2;
+    else if (window.matchMedia('(min-width: 768px)').matches) activeViewportIndex = 1;
+
+    if (!hasDifferentViewports || activeViewportIndex === 0) {
+      lcpImageUpdate(lcpImg);
+      return;
     }
+
+    const lcpBlockRows = [...lcpBlock.children];
+
+    const viewportSections = VIEWPORTS.map(() => []);
+    let currentViewport = -1;
+    lcpBlockRows.forEach((row) => {
+      const delimiterIndex = vpDelimiterIndex(row);
+      if (delimiterIndex !== -1) currentViewport = delimiterIndex;
+      else if (currentViewport !== -1) viewportSections[currentViewport].push(row);
+    });
+
+    const lcpRowIndex = viewportSections[0].findIndex((row) => row.querySelector('img'));
+    if (lcpRowIndex === -1) {
+      lcpImageUpdate(lcpImg);
+      return;
+    }
+    const viewportLCPs = viewportSections.map((section) => section[lcpRowIndex]?.querySelector('img'));
+    const finalLcp = viewportLCPs.slice(0, activeViewportIndex + 1).reverse().find((lcp) => lcp) ?? lcpImg;
+    lcpImageUpdate(finalLcp);
   }());
 }
 decorateArea();
