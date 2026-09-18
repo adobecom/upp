@@ -224,7 +224,46 @@ function decorateArea(area = document, options = {}) {
       lcpImageUpdate(sectionMetadataBg);
       return;
     }
-    lcpImageUpdate(lcpImg);
+
+    const VIEWPORTS = ['mobile', 'tablet', 'desktop'];
+    const vpDelimiterIndex = (row) => (row.children.length === 1
+      ? VIEWPORTS.indexOf(row.children[0].textContent.trim().toLowerCase().split(/[ (]/)[0].replace('-viewport', ''))
+        : -1);
+    const lcpBlock = lcpImg.closest('main > div > div');
+    if (!lcpBlock) { 
+      lcpImageUpdate(lcpImg);
+      return;
+    }
+    const hasDifferentViewports = [...lcpBlock.children]
+    .some((child) => vpDelimiterIndex(child) !== -1);
+
+    let activeViewportIndex = 0;
+    if (window.matchMedia('(min-width: 1280px)').matches) activeViewportIndex = 2;
+    else if (window.matchMedia('(min-width: 768px)').matches) activeViewportIndex = 1;
+
+    if (!hasDifferentViewports || activeViewportIndex === 0) {
+      lcpImageUpdate(lcpImg);
+      return;
+    }
+
+    const lcpBlockRows = [...lcpBlock.children];
+
+    const viewportSections = VIEWPORTS.map(() => []);
+    let currentViewport = -1;
+    lcpBlockRows.forEach((row) => {
+      const delimiterIndex = vpDelimiterIndex(row);
+      if (delimiterIndex !== -1) currentViewport = delimiterIndex;
+      else if (currentViewport !== -1) viewportSections[currentViewport].push(row);
+    });
+
+    const lcpRowIndex = viewportSections[0].findIndex((row) => row.querySelector('img'));
+    if (lcpRowIndex === -1) {
+      lcpImageUpdate(lcpImg);
+      return;
+    }
+    const viewportLCPs = viewportSections.map((section) => section[lcpRowIndex]?.querySelector('img'));
+    const finalLcp = viewportLCPs.slice(0, activeViewportIndex + 1).reverse().find((lcp) => lcp) ?? lcpImg;
+    lcpImageUpdate(finalLcp);
   }());
 }
 decorateArea();
