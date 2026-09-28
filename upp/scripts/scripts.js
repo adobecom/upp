@@ -217,17 +217,20 @@ const MAS_EXTRA_LOCALES = { pr: 'es_PR' };
 const MAS_LINK_SELECTOR = 'a[href*="mas.adobe.com/studio.html"]';
 const preloadedMasFragments = new Set();
 
-function getMasLocale() {
+function getMasLocale(geoCountry) {
   const seg = window.location.pathname.split('/')[1];
   const prefix = Object.prototype.hasOwnProperty.call(locales, seg) ? seg : '';
   const geo = prefix || 'US_en';
   let [country = 'US', language = 'en'] = (MAS_GEO_MAP[geo] ?? geo).split('_', 2);
   country = country.toUpperCase();
   language = language.toLowerCase();
-  return { locale: MAS_EXTRA_LOCALES[geo] ?? `${language}_${country}`, country };
+  // The detected market wins over the page locale's country: on a geo-detection page MAS
+  // resolves the visitor's own market, so a page-locale country would build a URL that never
+  // matches the request MAS goes on to make, costing a wasted fetch instead of saving one.
+  return { locale: MAS_EXTRA_LOCALES[geo] ?? `${language}_${country}`, country: geoCountry ?? country };
 }
 
-function preloadMasFragment(a) {
+async function preloadMasFragment(a) {
   let url;
   try {
     url = new URL(a.href);
@@ -240,7 +243,8 @@ function preloadMasFragment(a) {
   if (!fragment || preloadedMasFragments.has(fragment)) return;
   preloadedMasFragments.add(fragment);
 
-  const { locale, country } = getMasLocale();
+  const { getCountry } = await import(`${miloLibs}/utils/utils.js`);
+  const { locale, country } = getMasLocale((await getCountry())?.toUpperCase());
   let endpoint = `${MAS_FRAGMENT_API}?id=${fragment}&api_key=${DEFAULT_MAS_FRAGMENT_API_KEY}&locale=${locale}`;
   if (country && !locale.endsWith(`_${country}`)) endpoint += `&country=${country}`;
 
