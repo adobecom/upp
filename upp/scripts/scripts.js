@@ -249,20 +249,8 @@ function getMasLocale(geoCountry) {
   return { locale: MAS_EXTRA_LOCALES[geo] ?? `${language}_${country}`, country: geoCountry ?? country };
 }
 
-function preloadMasFragment(a) {
-  let url;
-  try {
-    url = new URL(a.href);
-  } catch {
-    return;
-  }
-  if (url.hostname !== 'mas.adobe.com' || !url.pathname.endsWith('/studio.html')) return;
-  const params = new URLSearchParams(url.hash.replace(/^#/, ''));
-  const fragment = params.get('fragment') || params.get('query');
-  if (!fragment || preloadedMasFragments.has(fragment)) return;
-  preloadedMasFragments.add(fragment);
-
-  const { locale, country } = getMasLocale(getDetectedCountrySync());
+function emitMasPreload(fragment, geoCountry) {
+  const { locale, country } = getMasLocale(geoCountry);
   let endpoint = `${MAS_FRAGMENT_API}?id=${fragment}&api_key=${DEFAULT_MAS_FRAGMENT_API_KEY}&locale=${locale}`;
   if (country && !locale.endsWith(`_${country}`)) endpoint += `&country=${country}`;
 
@@ -278,6 +266,38 @@ function preloadMasFragment(a) {
   link.setAttribute('fetchpriority', 'low');
   link.setAttribute('href', endpoint);
   document.head.appendChild(link);
+}
+
+function preloadMasFragment(a) {
+  let url;
+  try {
+    url = new URL(a.href);
+  } catch {
+    return;
+  }
+  if (url.hostname !== 'mas.adobe.com' || !url.pathname.endsWith('/studio.html')) return;
+  const params = new URLSearchParams(url.hash.replace(/^#/, ''));
+  const fragment = params.get('fragment') || params.get('query');
+  if (!fragment || preloadedMasFragments.has(fragment)) return;
+  preloadedMasFragments.add(fragment);
+
+  const syncCountry = getDetectedCountrySync();
+  if (syncCountry) {
+    emitMasPreload(fragment, syncCountry);
+    return;
+  }
+  // No warm geo source: rather than guess the page locale's country and emit a URL MAS will
+  // never request, resolve it properly. Deferred to a microtask because decorateArea runs
+  // during module evaluation, when miloLibs is still in its temporal dead zone.
+  Promise.resolve().then(async () => {
+    try {
+      // eslint-disable-next-line no-use-before-define
+      const { getCountry } = await import(`${miloLibs}/utils/utils.js`);
+      emitMasPreload(fragment, (await getCountry())?.toUpperCase());
+    } catch {
+      preloadedMasFragments.delete(fragment);
+    }
+  });
 }
 
 function decorateArea(area = document, options = {}) {
