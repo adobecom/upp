@@ -217,6 +217,25 @@ const MAS_EXTRA_LOCALES = { pr: 'es_PR' };
 const MAS_LINK_SELECTOR = 'a[href*="mas.adobe.com/studio.html"]';
 const preloadedMasFragments = new Set();
 
+// Synchronous best-effort read of the same sources getCountry() consults, minus its network
+// fallback. decorateArea runs during module evaluation, so awaiting anything here delays the
+// preload past the block's own fetch and makes it worthless; when no source is warm we fall
+// back to the page locale's country rather than blocking.
+function getDetectedCountrySync() {
+  const valid = (v) => (typeof v === 'string' && /^[a-zA-Z]{2,6}$/.test(v) ? v : null);
+  const params = new URLSearchParams(window.location.search);
+  let geo;
+  try {
+    geo = window.performance?.getEntriesByType('navigation')?.[0]?.serverTiming
+      ?.find((t) => t?.name === 'geo')?.description;
+  } catch { geo = null; }
+  let stored = null;
+  try { stored = sessionStorage.getItem('akamai'); } catch { stored = null; }
+  const country = valid(params.get('country')) || valid(params.get('akamaiLocale'))
+    || valid(stored) || valid(geo);
+  return country ? country.toUpperCase().split('_')[0] : null;
+}
+
 function getMasLocale(geoCountry) {
   const seg = window.location.pathname.split('/')[1];
   const prefix = Object.prototype.hasOwnProperty.call(locales, seg) ? seg : '';
@@ -230,7 +249,7 @@ function getMasLocale(geoCountry) {
   return { locale: MAS_EXTRA_LOCALES[geo] ?? `${language}_${country}`, country: geoCountry ?? country };
 }
 
-async function preloadMasFragment(a) {
+function preloadMasFragment(a) {
   let url;
   try {
     url = new URL(a.href);
@@ -243,8 +262,7 @@ async function preloadMasFragment(a) {
   if (!fragment || preloadedMasFragments.has(fragment)) return;
   preloadedMasFragments.add(fragment);
 
-  const { getCountry } = await import(`${miloLibs}/utils/utils.js`);
-  const { locale, country } = getMasLocale((await getCountry())?.toUpperCase());
+  const { locale, country } = getMasLocale(getDetectedCountrySync());
   let endpoint = `${MAS_FRAGMENT_API}?id=${fragment}&api_key=${DEFAULT_MAS_FRAGMENT_API_KEY}&locale=${locale}`;
   if (country && !locale.endsWith(`_${country}`)) endpoint += `&country=${country}`;
 
