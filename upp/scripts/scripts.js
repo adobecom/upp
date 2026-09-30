@@ -215,80 +215,33 @@ const MAS_GEO_MAP = {
 };
 const MAS_EXTRA_LOCALES = { pr: 'es_PR' };
 const MAS_LINK_SELECTOR = 'a[href*="mas.adobe.com/studio.html"]';
-const MAS_ENDPOINT_OVERRIDES = [
-  ['mas.preview', 'mas.preview'],
-  ['mas-io-url', 'mas-io-url'],
-  ['instant', 'instant'],
-  ['wcsApiKey', 'wcs-api-key'],
-  ['commerce.env', 'commerce.env'],
-];
 const preloadedMasFragments = new Set();
 
-function hasMasEndpointOverride() {
-  const params = new URLSearchParams(window.location.search);
-  return MAS_ENDPOINT_OVERRIDES.some(([key, metaName]) => {
-    if (params.has(key) || document.querySelector(`meta[name="${metaName}"]`)) return true;
-    try {
-      return sessionStorage.getItem(key) != null || localStorage.getItem(key) != null;
-    } catch {
-      return false;
-    }
-  });
+function getGeoCountry() {
+  const geo = window.performance?.getEntriesByType('navigation')?.[0]?.serverTiming
+    ?.find((t) => t?.name === 'geo')?.description ?? sessionStorage.getItem('akamai');
+  return geo?.toUpperCase();
 }
 
-function isMasGeoDetectionEnabled() {
-  const value = new URLSearchParams(window.location.search).get('mas-geo-detection')
-    ?? document.querySelector('meta[name="mas-geo-detection"]')?.content;
-  return !!value && ['on', 'true'].includes(value.toLowerCase());
-}
-
-const normCountry = (v) => {
-  if (typeof v !== 'string' || !v) return null;
-  const lower = v.toLowerCase();
-  return (lower === 'uk' ? 'gb' : lower.split('_')[0]).toUpperCase();
-};
-
-function getDetectedCountriesSync() {
-  const params = new URLSearchParams(window.location.search);
-  const cookie = (name) => document.cookie.split('; ')
-    .find((c) => c.startsWith(`${name}=`))?.split('=')[1];
-  let geo = null;
-  try {
-    geo = window.performance?.getEntriesByType('navigation')?.[0]?.serverTiming
-      ?.find((t) => t?.name === 'geo')?.description;
-  } catch {
-    geo = null;
-  }
-  if (!geo) {
-    try {
-      geo = sessionStorage.getItem('akamai');
-    } catch {
-      geo = null;
-    }
-  }
-  return [params.get('country'), params.get('akamaiLocale'), cookie('country'),
-    cookie('ims_country_code'), geo].map(normCountry).filter(Boolean);
-}
-
-function getMasPageLocale() {
+function getMasLocale(geoCountry) {
   const seg = window.location.pathname.split('/')[1];
   const geo = seg && Object.prototype.hasOwnProperty.call(locales, seg) ? seg : 'US_en';
-  const [country = 'US', language = 'en'] = (MAS_GEO_MAP[geo] ?? geo).split('_', 2);
-  const upperCountry = country.toUpperCase();
-  return {
-    locale: MAS_EXTRA_LOCALES[geo] ?? `${language.toLowerCase()}_${upperCountry}`,
-    country: upperCountry,
-  };
+  let [country = 'US', language = 'en'] = (MAS_GEO_MAP[geo] ?? geo).split('_', 2);
+  country = country.toUpperCase();
+  language = language.toLowerCase();
+  return { locale: MAS_EXTRA_LOCALES[geo] ?? `${language}_${country}`, country: geoCountry ?? country };
 }
 
-function getMasRequestLocale() {
-  const page = getMasPageLocale();
-  if (!isMasGeoDetectionEnabled()) return page;
-  const detected = getDetectedCountriesSync();
-  return detected.length && detected.every((c) => c === page.country) ? page : null;
-}
+function preloadMasFragment(a) {
+  const params = new URLSearchParams(new URL(a.href).hash.slice(1));
+  const fragment = params.get('fragment') || params.get('query');
+  if (!fragment || preloadedMasFragments.has(fragment)) return;
+  preloadedMasFragments.add(fragment);
 
-function emitMasPreload(endpoint) {
+  const { locale, country } = getMasLocale(getGeoCountry());
+  let endpoint = `${MAS_FRAGMENT_API}?id=${fragment}&api_key=${DEFAULT_MAS_FRAGMENT_API_KEY}&locale=${locale}`;
+  if (country && !locale.endsWith(`_${country}`)) endpoint += `&country=${country}`;
+
   const link = document.createElement('link');
   link.setAttribute('rel', 'preload');
   link.setAttribute('as', 'fetch');
@@ -299,42 +252,6 @@ function emitMasPreload(endpoint) {
   document.head.appendChild(link);
 }
 
-function preloadMasFragment(a, requestLocale) {
-  let url;
-  try {
-    url = new URL(a.href);
-  } catch {
-    return;
-  }
-  if (url.hostname !== 'mas.adobe.com' || !url.pathname.endsWith('/studio.html')) return;
-  const params = new URLSearchParams(url.hash.replace(/^#/, ''));
-  const fragment = params.get('fragment') || params.get('query');
-  if (!fragment) return;
-
-  const { locale, country } = requestLocale;
-  let endpoint = `${MAS_FRAGMENT_API}?id=${fragment}&api_key=${DEFAULT_MAS_FRAGMENT_API_KEY}&locale=${locale}`;
-  if (country && !locale.endsWith(`_${country}`)) endpoint += `&country=${country}`;
-  const mask = params.get('mask');
-  const pzn = params.get('pzn');
-  if (mask) endpoint += `&mask=${mask}`;
-  if (pzn) endpoint += `&pzn=${pzn}`;
-
-  if (preloadedMasFragments.has(endpoint)) return;
-  preloadedMasFragments.add(endpoint);
-  emitMasPreload(endpoint);
-}
-
-function preloadMasFragments(area) {
-  const links = area.querySelector('body > main > div')?.querySelectorAll(MAS_LINK_SELECTOR);
-  if (!links?.length) return;
-  const { host, pathname } = window.location;
-  if (host.includes('aem.page') || host === 'www.stage.adobe.com') return;
-  if (pathname.startsWith('/langstore/') || hasMasEndpointOverride()) return;
-  const requestLocale = getMasRequestLocale();
-  if (!requestLocale) return;
-  links.forEach((a) => preloadMasFragment(a, requestLocale));
-}
-
 function decorateArea(area = document, options = {}) {
   const lcpImageUpdate = (img) => {
     img.setAttribute('loading', 'eager');
@@ -343,7 +260,9 @@ function decorateArea(area = document, options = {}) {
 
   replaceDotMedia(area);
 
-  preloadMasFragments(area ?? document);
+  (area ?? document).querySelector('body > main > div')
+    ?.querySelectorAll(MAS_LINK_SELECTOR)
+    .forEach(preloadMasFragment);
 
   (function loadLCPImage() {
     const { fragmentLink } = options;
