@@ -217,12 +217,6 @@ const MAS_EXTRA_LOCALES = { pr: 'es_PR' };
 const MAS_LINK_SELECTOR = 'a[href*="mas.adobe.com/studio.html"]';
 const preloadedMasFragments = new Set();
 
-function getGeoCountry() {
-  const geo = window.performance?.getEntriesByType('navigation')?.[0]?.serverTiming
-    ?.find((t) => t?.name === 'geo')?.description ?? sessionStorage.getItem('akamai');
-  return geo?.toUpperCase();
-}
-
 function getMasLocale(geoCountry) {
   const seg = window.location.pathname.split('/')[1];
   const geo = seg && Object.prototype.hasOwnProperty.call(locales, seg) ? seg : 'US_en';
@@ -232,13 +226,13 @@ function getMasLocale(geoCountry) {
   return { locale: MAS_EXTRA_LOCALES[geo] ?? `${language}_${country}`, country: geoCountry ?? country };
 }
 
-function preloadMasFragment(a) {
+function preloadMasFragment(a, geoCountry) {
   const params = new URLSearchParams(new URL(a.href).hash.slice(1));
   const fragment = params.get('fragment') || params.get('query');
   if (!fragment || preloadedMasFragments.has(fragment)) return;
   preloadedMasFragments.add(fragment);
 
-  const { locale, country } = getMasLocale(getGeoCountry());
+  const { locale, country } = getMasLocale(geoCountry);
   let endpoint = `${MAS_FRAGMENT_API}?id=${fragment}&api_key=${DEFAULT_MAS_FRAGMENT_API_KEY}&locale=${locale}`;
   if (country && !locale.endsWith(`_${country}`)) endpoint += `&country=${country}`;
 
@@ -259,10 +253,6 @@ function decorateArea(area = document, options = {}) {
   };
 
   replaceDotMedia(area);
-
-  (area ?? document).querySelector('body > main > div')
-    ?.querySelectorAll(MAS_LINK_SELECTOR)
-    .forEach(preloadMasFragment);
 
   (function loadLCPImage() {
     const { fragmentLink } = options;
@@ -393,11 +383,15 @@ async function loadPage() {
     document.head.appendChild(ahomeMeta);
   }
 
-  const { loadArea, setConfig, loadLana } = await import(`${miloLibs}/utils/utils.js`);
+  const { loadArea, setConfig, loadLana, getCountry } = await import(`${miloLibs}/utils/utils.js`);
   setConfig({ ...CONFIG, miloLibs });
   loadLana({ clientId: 'homepage' });
 
+  const masLinks = document.querySelector('body > main > div')?.querySelectorAll(MAS_LINK_SELECTOR);
   const loadAreaPromise = loadArea();
+  if (masLinks?.length) {
+    getCountry().then((geo) => masLinks.forEach((a) => preloadMasFragment(a, geo?.toUpperCase())));
+  }
   const isStage = window.location.host.includes('stage');
 
   imsCheck().then((isSignedInUser) => {
