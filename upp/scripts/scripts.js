@@ -215,45 +215,85 @@ const MAS_GEO_MAP = {
 };
 const MAS_EXTRA_LOCALES = { pr: 'es_PR' };
 const MAS_LINK_SELECTOR = 'a[href*="mas.adobe.com/studio.html"]';
+// Any of these (query, web storage or metadata, as MAS reads them) changes the fragment
+// endpoint, so a preload built from the defaults would never be used.
+const MAS_ENDPOINT_OVERRIDES = [
+  ['mas.preview', 'mas.preview'],
+  ['mas-io-url', 'mas-io-url'],
+  ['instant', 'instant'],
+  ['wcsApiKey', 'wcs-api-key'],
+  ['commerce.env', 'commerce.env'],
+];
 const preloadedMasFragments = new Set();
 
-// Synchronous best-effort read of the same sources getCountry() consults, minus its network
-// fallback. decorateArea runs during module evaluation, so awaiting anything here delays the
-// preload past the block's own fetch and makes it worthless; when no source is warm we fall
-// back to the page locale's country rather than blocking.
-function getDetectedCountrySync() {
-  const valid = (v) => (typeof v === 'string' && /^[a-zA-Z]{2,6}$/.test(v) ? v : null);
+function hasMasEndpointOverride() {
   const params = new URLSearchParams(window.location.search);
-  let geo;
+  return MAS_ENDPOINT_OVERRIDES.some(([key, metaName]) => {
+    if (params.has(key) || document.querySelector(`meta[name="${metaName}"]`)) return true;
+    try {
+      return sessionStorage.getItem(key) != null || localStorage.getItem(key) != null;
+    } catch {
+      return false;
+    }
+  });
+}
+
+function isMasGeoDetectionEnabled() {
+  const value = new URLSearchParams(window.location.search).get('mas-geo-detection')
+    // eslint-disable-next-line no-use-before-define
+    ?? getMetadata('mas-geo-detection');
+  return !!value && ['on', 'true'].includes(value.toLowerCase());
+}
+
+const normCountry = (v) => {
+  if (typeof v !== 'string' || !v) return null;
+  const lower = v.toLowerCase();
+  return (lower === 'uk' ? 'gb' : lower.split('_')[0]).toUpperCase();
+};
+
+// Every synchronous source milo's market resolution (computeDetectedMarketCountry) or
+// getCountry() may pick from: query params, the country/IMS cookies, and the geo that
+// setCountry() copies from the navigation's server-timing into sessionStorage.
+function getDetectedCountriesSync() {
+  const params = new URLSearchParams(window.location.search);
+  const cookie = (name) => document.cookie.split('; ')
+    .find((c) => c.startsWith(`${name}=`))?.split('=')[1];
+  let geo = null;
   try {
     geo = window.performance?.getEntriesByType('navigation')?.[0]?.serverTiming
       ?.find((t) => t?.name === 'geo')?.description;
-  } catch { geo = null; }
-  let stored = null;
-  try { stored = sessionStorage.getItem('akamai'); } catch { stored = null; }
-  const country = valid(params.get('country')) || valid(params.get('akamaiLocale'))
-    || valid(stored) || valid(geo);
-  return country ? country.toUpperCase().split('_')[0] : null;
+  } catch { /* unsupported */ }
+  if (!geo) {
+    try { geo = sessionStorage.getItem('akamai'); } catch { /* unavailable */ }
+  }
+  return [params.get('country'), params.get('akamaiLocale'), cookie('country'),
+    cookie('ims_country_code'), geo].map(normCountry).filter(Boolean);
 }
 
-function getMasLocale(geoCountry) {
+// Mirrors milo's getMiloLocaleSettings() for the page locale.
+function getMasPageLocale() {
   const seg = window.location.pathname.split('/')[1];
-  const prefix = Object.prototype.hasOwnProperty.call(locales, seg) ? seg : '';
-  const geo = prefix || 'US_en';
-  let [country = 'US', language = 'en'] = (MAS_GEO_MAP[geo] ?? geo).split('_', 2);
-  country = country.toUpperCase();
-  language = language.toLowerCase();
-  // The detected market wins over the page locale's country: on a geo-detection page MAS
-  // resolves the visitor's own market, so a page-locale country would build a URL that never
-  // matches the request MAS goes on to make, costing a wasted fetch instead of saving one.
-  return { locale: MAS_EXTRA_LOCALES[geo] ?? `${language}_${country}`, country: geoCountry ?? country };
+  const geo = seg && Object.prototype.hasOwnProperty.call(locales, seg) ? seg : 'US_en';
+  const [country = 'US', language = 'en'] = (MAS_GEO_MAP[geo] ?? geo).split('_', 2);
+  const upperCountry = country.toUpperCase();
+  return {
+    locale: MAS_EXTRA_LOCALES[geo] ?? `${language.toLowerCase()}_${upperCountry}`,
+    country: upperCountry,
+  };
 }
 
-function emitMasPreload(fragment, geoCountry) {
-  const { locale, country } = getMasLocale(geoCountry);
-  let endpoint = `${MAS_FRAGMENT_API}?id=${fragment}&api_key=${DEFAULT_MAS_FRAGMENT_API_KEY}&locale=${locale}`;
-  if (country && !locale.endsWith(`_${country}`)) endpoint += `&country=${country}`;
+// Returns the { locale, country } MAS will request with, or null when it can't be known
+// synchronously. With mas-geo-detection on, milo resolves the visitor's market (validated
+// against a remote config, possibly switching to a Global-EN locale); that can't be predicted
+// here, so only preload when every known signal says the visitor is in the page's own market.
+function getMasRequestLocale() {
+  const page = getMasPageLocale();
+  if (!isMasGeoDetectionEnabled()) return page;
+  const detected = getDetectedCountriesSync();
+  return detected.length && detected.every((c) => c === page.country) ? page : null;
+}
 
+function emitMasPreload(endpoint) {
   // Explicitly low priority: default fetch-preload priority is High, the same tier as the
   // LCP image's fetchpriority="high", and would compete with it for bandwidth. Firing in the
   // same tick still puts it far ahead of the block's own much-later fetch; this only tells
@@ -268,7 +308,7 @@ function emitMasPreload(fragment, geoCountry) {
   document.head.appendChild(link);
 }
 
-function preloadMasFragment(a) {
+function preloadMasFragment(a, requestLocale) {
   let url;
   try {
     url = new URL(a.href);
@@ -278,26 +318,32 @@ function preloadMasFragment(a) {
   if (url.hostname !== 'mas.adobe.com' || !url.pathname.endsWith('/studio.html')) return;
   const params = new URLSearchParams(url.hash.replace(/^#/, ''));
   const fragment = params.get('fragment') || params.get('query');
-  if (!fragment || preloadedMasFragments.has(fragment)) return;
-  preloadedMasFragments.add(fragment);
+  if (!fragment) return;
 
-  const syncCountry = getDetectedCountrySync();
-  if (syncCountry) {
-    emitMasPreload(fragment, syncCountry);
-    return;
-  }
-  // No warm geo source: rather than guess the page locale's country and emit a URL MAS will
-  // never request, resolve it properly. Deferred to a microtask because decorateArea runs
-  // during module evaluation, when miloLibs is still in its temporal dead zone.
-  Promise.resolve().then(async () => {
-    try {
-      // eslint-disable-next-line no-use-before-define
-      const { getCountry } = await import(`${miloLibs}/utils/utils.js`);
-      emitMasPreload(fragment, (await getCountry())?.toUpperCase());
-    } catch {
-      preloadedMasFragments.delete(fragment);
-    }
-  });
+  // Must match aem-fragment's #fetchData() URL byte for byte, including param order.
+  const { locale, country } = requestLocale;
+  let endpoint = `${MAS_FRAGMENT_API}?id=${fragment}&api_key=${DEFAULT_MAS_FRAGMENT_API_KEY}&locale=${locale}`;
+  if (country && !locale.endsWith(`_${country}`)) endpoint += `&country=${country}`;
+  const mask = params.get('mask');
+  const pzn = params.get('pzn');
+  if (mask) endpoint += `&mask=${mask}`;
+  if (pzn) endpoint += `&pzn=${pzn}`;
+
+  if (preloadedMasFragments.has(endpoint)) return;
+  preloadedMasFragments.add(endpoint);
+  emitMasPreload(endpoint);
+}
+
+function preloadMasFragments(area) {
+  const links = area.querySelector('body > main > div')?.querySelectorAll(MAS_LINK_SELECTOR);
+  if (!links?.length) return;
+  const { host, pathname } = window.location;
+  // Preview hosts render fragments through fragment-client, not the IO endpoint.
+  if (host.includes('aem.page') || host === 'www.stage.adobe.com') return;
+  if (pathname.startsWith('/langstore/') || hasMasEndpointOverride()) return;
+  const requestLocale = getMasRequestLocale();
+  if (!requestLocale) return;
+  links.forEach((a) => preloadMasFragment(a, requestLocale));
 }
 
 function decorateArea(area = document, options = {}) {
@@ -308,9 +354,7 @@ function decorateArea(area = document, options = {}) {
 
   replaceDotMedia(area);
 
-  (area ?? document).querySelector('body > main > div')
-    ?.querySelectorAll(MAS_LINK_SELECTOR)
-    .forEach(preloadMasFragment);
+  preloadMasFragments(area ?? document);
 
   (function loadLCPImage() {
     const { fragmentLink } = options;
