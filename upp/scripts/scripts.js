@@ -215,8 +215,6 @@ const MAS_GEO_MAP = {
 };
 const MAS_EXTRA_LOCALES = { pr: 'es_PR' };
 const MAS_LINK_SELECTOR = 'a[href*="mas.adobe.com/studio.html"]';
-// Any of these (query, web storage or metadata, as MAS reads them) changes the fragment
-// endpoint, so a preload built from the defaults would never be used.
 const MAS_ENDPOINT_OVERRIDES = [
   ['mas.preview', 'mas.preview'],
   ['mas-io-url', 'mas-io-url'],
@@ -240,8 +238,7 @@ function hasMasEndpointOverride() {
 
 function isMasGeoDetectionEnabled() {
   const value = new URLSearchParams(window.location.search).get('mas-geo-detection')
-    // eslint-disable-next-line no-use-before-define
-    ?? getMetadata('mas-geo-detection');
+    ?? document.querySelector('meta[name="mas-geo-detection"]')?.content;
   return !!value && ['on', 'true'].includes(value.toLowerCase());
 }
 
@@ -251,9 +248,6 @@ const normCountry = (v) => {
   return (lower === 'uk' ? 'gb' : lower.split('_')[0]).toUpperCase();
 };
 
-// Every synchronous source milo's market resolution (computeDetectedMarketCountry) or
-// getCountry() may pick from: query params, the country/IMS cookies, and the geo that
-// setCountry() copies from the navigation's server-timing into sessionStorage.
 function getDetectedCountriesSync() {
   const params = new URLSearchParams(window.location.search);
   const cookie = (name) => document.cookie.split('; ')
@@ -262,15 +256,20 @@ function getDetectedCountriesSync() {
   try {
     geo = window.performance?.getEntriesByType('navigation')?.[0]?.serverTiming
       ?.find((t) => t?.name === 'geo')?.description;
-  } catch { /* unsupported */ }
+  } catch {
+    geo = null;
+  }
   if (!geo) {
-    try { geo = sessionStorage.getItem('akamai'); } catch { /* unavailable */ }
+    try {
+      geo = sessionStorage.getItem('akamai');
+    } catch {
+      geo = null;
+    }
   }
   return [params.get('country'), params.get('akamaiLocale'), cookie('country'),
     cookie('ims_country_code'), geo].map(normCountry).filter(Boolean);
 }
 
-// Mirrors milo's getMiloLocaleSettings() for the page locale.
 function getMasPageLocale() {
   const seg = window.location.pathname.split('/')[1];
   const geo = seg && Object.prototype.hasOwnProperty.call(locales, seg) ? seg : 'US_en';
@@ -282,10 +281,6 @@ function getMasPageLocale() {
   };
 }
 
-// Returns the { locale, country } MAS will request with, or null when it can't be known
-// synchronously. With mas-geo-detection on, milo resolves the visitor's market (validated
-// against a remote config, possibly switching to a Global-EN locale); that can't be predicted
-// here, so only preload when every known signal says the visitor is in the page's own market.
 function getMasRequestLocale() {
   const page = getMasPageLocale();
   if (!isMasGeoDetectionEnabled()) return page;
@@ -294,10 +289,6 @@ function getMasRequestLocale() {
 }
 
 function emitMasPreload(endpoint) {
-  // Explicitly low priority: default fetch-preload priority is High, the same tier as the
-  // LCP image's fetchpriority="high", and would compete with it for bandwidth. Firing in the
-  // same tick still puts it far ahead of the block's own much-later fetch; this only tells
-  // the browser to let the image win when the connection is contended.
   const link = document.createElement('link');
   link.setAttribute('rel', 'preload');
   link.setAttribute('as', 'fetch');
@@ -320,7 +311,6 @@ function preloadMasFragment(a, requestLocale) {
   const fragment = params.get('fragment') || params.get('query');
   if (!fragment) return;
 
-  // Must match aem-fragment's #fetchData() URL byte for byte, including param order.
   const { locale, country } = requestLocale;
   let endpoint = `${MAS_FRAGMENT_API}?id=${fragment}&api_key=${DEFAULT_MAS_FRAGMENT_API_KEY}&locale=${locale}`;
   if (country && !locale.endsWith(`_${country}`)) endpoint += `&country=${country}`;
@@ -338,7 +328,6 @@ function preloadMasFragments(area) {
   const links = area.querySelector('body > main > div')?.querySelectorAll(MAS_LINK_SELECTOR);
   if (!links?.length) return;
   const { host, pathname } = window.location;
-  // Preview hosts render fragments through fragment-client, not the IO endpoint.
   if (host.includes('aem.page') || host === 'www.stage.adobe.com') return;
   if (pathname.startsWith('/langstore/') || hasMasEndpointOverride()) return;
   const requestLocale = getMasRequestLocale();
