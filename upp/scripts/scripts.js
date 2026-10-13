@@ -493,7 +493,7 @@ async function loadPage() {
     const sis = nav?.serverTiming?.find(({ name }) => name === 'sis')?.description ?? 'none';
     const logged = Promise.resolve(window.lana?.log(
       `Homepage IMS check: signedIn=${isSignedInUser}, acomsis=${!!signedInCookie}, sis=${sis}, cached=${nav?.transferSize === 0}`,
-      { clientId: 'homepage', sampleRate: 1, tags: 'ims-redirect', severity: 'i' },
+      { clientId: 'homepage', sampleRate: 0.1, tags: 'ims-redirect', severity: 'i' },
     )).catch(() => {});
     if (isSignedInUser) {
       await Promise.race([logged, new Promise((resolve) => { setTimeout(resolve, 1000); })]);
