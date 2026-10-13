@@ -129,14 +129,3 @@
 <script src="/upp/scripts/scripts.js" type="module"></script>
 <style>body { display: none; }</style>
 <link rel="icon" href="data:,">
-<style id="ims-body-style">
-  body:first-of-type {
-      opacity: 0.01 !important;
-  }
-</style>
-<script>
-  // in case scripts.js fails to remove.
-  setTimeout(function() {
-      document.getElementById('ims-body-style')?.remove();
-  }, 5000);
-</script>

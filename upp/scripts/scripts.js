@@ -418,11 +418,8 @@ async function imsCheck() {
   // no need to check IMS for these cases:
   if (!host.includes('adobe.com') || pathname.split('/').at(-1).startsWith('media_')) return false;
 
-  const { loadIms, setConfig } = await import(`${miloLibs}/utils/utils.js`);
-  setConfig({ ...CONFIG, miloLibs });
   let isSignedInUser = false;
   try {
-    await loadIms();
     if (window.adobeIMS?.isSignedInUser()) {
       await window.adobeIMS.validateToken();
       // validate token rejects and falls into the following catch block.
@@ -431,10 +428,58 @@ async function imsCheck() {
   } catch (e) {
     window.lana?.log('Homepage IMS check failed', e);
   }
-  if (!isSignedInUser) {
-    document.getElementById('ims-body-style')?.remove();
-  }
   return isSignedInUser;
+}
+
+// Signed-in users with an acomsis cookie are redirected to Adobe Home by Akamai before this page
+// loads. This late check only covers signed-in users without acomsis yet, or a browser-cached page.
+let adobeHomeRedirectCheckDone = false;
+async function adobeHomeRedirectCheck() {
+  if (adobeHomeRedirectCheckDone) return;
+  adobeHomeRedirectCheckDone = true;
+  const { pathname } = window.location;
+  if (pathname.includes('/plans') || pathname.includes('/catalog')) return;
+  const isSignedInUser = await imsCheck();
+  const isStage = window.location.host.includes('stage');
+  const signedInCookie = getCookie(isStage ? ACOM_SIGNED_IN_STATUS_STAGE : ACOM_SIGNED_IN_STATUS);
+
+  if (!isSignedInUser) {
+    if (!signedInCookie) return;
+    if (!isStage) {
+      document.cookie = `${ACOM_SIGNED_IN_STATUS}=;path=/;expires=${new Date(0).toUTCString()};`;
+      document.cookie = `${ACOM_SIGNED_IN_STATUS}=;path=/;expires=${new Date(0).toUTCString()};domain=adobe.com;`;
+    } else {
+      document.cookie = `${ACOM_SIGNED_IN_STATUS_STAGE}=;path=/;expires=${new Date(0).toUTCString()};domain=www.stage.adobe.com;`;
+    }
+    return;
+  }
+
+  if (!signedInCookie) {
+    const date = new Date();
+    date.setTime(date.getTime() + (365 * 24 * 60 * 60 * 1000));
+    document.cookie = `${isStage ? ACOM_SIGNED_IN_STATUS_STAGE : ACOM_SIGNED_IN_STATUS}=1;path=/;expires=${date.toUTCString()};domain=${isStage ? 'www.stage.' : ''}adobe.com;`;
+  } else if (window.location.href.includes('/fragments/')) {
+    return;
+  }
+
+  const ahomeUrl = window.adobeid?.redirect_uri;
+  if (ahomeUrl?.includes('/home')) window.location.href = ahomeUrl;
+  else window.location.reload();
+}
+
+// Doesn't load IMS: Milo's gnav starts it after the LCP section. imslib dispatches
+// onImsLibInstance once initialization has finished.
+function onImsReady(callback) {
+  if (window.adobeIMS?.initialized) {
+    callback();
+    return;
+  }
+  const onInstance = (e) => {
+    if (e.detail?.clientId !== CONFIG.imsClientId) return;
+    window.removeEventListener('onImsLibInstance', onInstance);
+    callback();
+  };
+  window.addEventListener('onImsLibInstance', onInstance);
 }
 
 function getMetadata(name, doc = document) {
@@ -476,38 +521,8 @@ async function loadPage() {
 
   decorateArea();
 
+  onImsReady(adobeHomeRedirectCheck);
   const loadAreaPromise = loadArea();
-  const isStage = window.location.host.includes('stage');
-
-  imsCheck().then((isSignedInUser) => {
-    if (window.location.pathname.includes('/plans')) return;
-    if (window.location.pathname.includes('/catalog')) return;
-    const signedInCookie = isStage ? getCookie(ACOM_SIGNED_IN_STATUS_STAGE) : getCookie(ACOM_SIGNED_IN_STATUS);
-    const ahomeUrl = window.adobeid?.redirect_uri;
-    const goToAhome = () => {
-      if (ahomeUrl?.includes('/home')) window.location.href = ahomeUrl;
-      else window.location.reload();
-    };
-
-    if (isSignedInUser && !signedInCookie) {
-      const date = new Date();
-      date.setTime(date.getTime() + (365 * 24 * 60 * 60 * 1000));
-      document.cookie = `${isStage ? ACOM_SIGNED_IN_STATUS_STAGE : ACOM_SIGNED_IN_STATUS}=1;path=/;expires=${date.toUTCString()};domain=${isStage ? 'www.stage.' : ''}adobe.com;`;
-      goToAhome();
-    }
-    if (!isSignedInUser && signedInCookie) {
-      if (!isStage) {
-        document.cookie = `${ACOM_SIGNED_IN_STATUS}=;path=/;expires=${new Date(0).toUTCString()};`;
-        document.cookie = `${ACOM_SIGNED_IN_STATUS}=;path=/;expires=${new Date(0).toUTCString()};domain=adobe.com;`;
-      } else {
-        document.cookie = `${ACOM_SIGNED_IN_STATUS_STAGE}=;path=/;expires=${new Date(0).toUTCString()};domain=www.stage.adobe.com;`;
-      }
-      window.location.reload();
-    }
-    if (signedInCookie && isSignedInUser && !window.location.href.includes('/fragments/')) {
-      goToAhome();
-    }
-  });
 
   // for media_ update for feds
   const observeCallback = (mutationList, observer) => {
