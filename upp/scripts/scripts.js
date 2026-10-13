@@ -479,7 +479,7 @@ async function loadPage() {
   const loadAreaPromise = loadArea();
   const isStage = window.location.host.includes('stage');
 
-  imsCheck().then((isSignedInUser) => {
+  imsCheck().then(async (isSignedInUser) => {
     if (window.location.pathname.includes('/plans')) return;
     if (window.location.pathname.includes('/catalog')) return;
     const signedInCookie = isStage ? getCookie(ACOM_SIGNED_IN_STATUS_STAGE) : getCookie(ACOM_SIGNED_IN_STATUS);
@@ -488,6 +488,17 @@ async function loadPage() {
       if (ahomeUrl?.includes('/home')) window.location.href = ahomeUrl;
       else window.location.reload();
     };
+
+    const nav = window.performance?.getEntriesByType('navigation')?.[0];
+    const sis = nav?.serverTiming?.find(({ name }) => name === 'sis')?.description ?? 'none';
+    const logged = Promise.resolve(window.lana?.log(
+      `Homepage IMS check: signedIn=${isSignedInUser}, acomsis=${!!signedInCookie}, sis=${sis}, cached=${nav?.transferSize === 0}`,
+      { clientId: 'homepage', sampleRate: 1, tags: 'ims-redirect', severity: 'i' },
+    )).catch(() => {});
+    if (isSignedInUser) {
+      await Promise.race([logged, new Promise((resolve) => { setTimeout(resolve, 1000); })]);
+      await new Promise((resolve) => { setTimeout(resolve, 100); });
+    }
 
     if (isSignedInUser && !signedInCookie) {
       const date = new Date();
