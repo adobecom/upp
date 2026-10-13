@@ -413,6 +413,8 @@ const getCookie = (name) => document.cookie
     .find((row) => row.startsWith(`${name}=`))
     ?.split('=')[1];
 
+let imsCheckFailed = false;
+
 async function imsCheck() {
   const { host, pathname } = window.location;
   // no need to check IMS for these cases:
@@ -429,6 +431,7 @@ async function imsCheck() {
       isSignedInUser = true;
     }
   } catch (e) {
+    imsCheckFailed = true;
     window.lana?.log('Homepage IMS check failed', e);
   }
   if (!isSignedInUser) {
@@ -441,6 +444,19 @@ function getMetadata(name, doc = document) {
   const attr = name && name.includes(':') ? 'property' : 'name';
   const meta = doc.head.querySelector(`meta[${attr}="${name}"]`);
   return meta && meta.content;
+}
+
+const wait = (ms) => new Promise((resolve) => { setTimeout(resolve, ms); });
+
+function logImsCheck(isSignedInUser, signedInCookie) {
+  return Promise.resolve().then(() => {
+    const nav = window.performance?.getEntriesByType('navigation')?.[0];
+    const sis = nav?.serverTiming?.find(({ name }) => name === 'sis')?.description ?? 'none';
+    return window.lana?.log?.(
+      `Homepage IMS check: signedIn=${isSignedInUser}, ims=${imsCheckFailed ? 'error' : 'ok'}, acomsis=${!!signedInCookie}, sis=${sis}, cached=${nav?.transferSize === 0}, path=${window.location.pathname}`,
+      { clientId: 'homepage', sampleRate: 0.1, tags: 'ims-redirect', severity: 'i' },
+    );
+  }).catch(() => {});
 }
 
 function loadStyles() {
@@ -479,7 +495,7 @@ async function loadPage() {
   const loadAreaPromise = loadArea();
   const isStage = window.location.host.includes('stage');
 
-  imsCheck().then((isSignedInUser) => {
+  imsCheck().then(async (isSignedInUser) => {
     if (window.location.pathname.includes('/plans')) return;
     if (window.location.pathname.includes('/catalog')) return;
     const signedInCookie = isStage ? getCookie(ACOM_SIGNED_IN_STATUS_STAGE) : getCookie(ACOM_SIGNED_IN_STATUS);
@@ -488,6 +504,9 @@ async function loadPage() {
       if (ahomeUrl?.includes('/home')) window.location.href = ahomeUrl;
       else window.location.reload();
     };
+
+    const logged = logImsCheck(isSignedInUser, signedInCookie);
+    if (isSignedInUser) await Promise.race([Promise.all([logged, wait(100)]), wait(300)]);
 
     if (isSignedInUser && !signedInCookie) {
       const date = new Date();
