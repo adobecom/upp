@@ -413,6 +413,8 @@ const getCookie = (name) => document.cookie
     .find((row) => row.startsWith(`${name}=`))
     ?.split('=')[1];
 
+let imsCheckFailed = false;
+
 async function imsCheck() {
   const { host, pathname } = window.location;
   // no need to check IMS for these cases:
@@ -429,6 +431,7 @@ async function imsCheck() {
       isSignedInUser = true;
     }
   } catch (e) {
+    imsCheckFailed = true;
     window.lana?.log('Homepage IMS check failed', e);
   }
   if (!isSignedInUser) {
@@ -441,6 +444,30 @@ function getMetadata(name, doc = document) {
   const attr = name && name.includes(':') ? 'property' : 'name';
   const meta = doc.head.querySelector(`meta[${attr}="${name}"]`);
   return meta && meta.content;
+}
+
+const IMS_CHECK_SAMPLE_RATE = 0.1;
+const wait = (ms) => new Promise((resolve) => { setTimeout(resolve, ms); });
+
+function shouldLogImsCheck() {
+  const params = new URLSearchParams(window.location.search);
+  if (params.get('dapreview')) return false;
+  const [, localePrefix] = window.location.pathname.match(/^\/(?:([a-z_]+)\/?)?$/) || [];
+  const isHomepage = window.location.pathname === '/' || (localePrefix && localePrefix in locales);
+  if (!isHomepage) return false;
+  const sampleRate = parseFloat(params.get('lana-sample')) || IMS_CHECK_SAMPLE_RATE;
+  return sampleRate > Math.random() * 100;
+}
+
+function logImsCheck(isSignedInUser, signedInCookie) {
+  return Promise.resolve().then(() => {
+    const nav = window.performance?.getEntriesByType('navigation')?.[0];
+    const sis = nav?.serverTiming?.find(({ name }) => name === 'sis')?.description ?? 'none';
+    return window.lana?.log?.(
+      `Homepage IMS check: signedIn=${isSignedInUser}, ims=${imsCheckFailed ? 'error' : 'ok'}, acomsis=${!!signedInCookie}, sis=${sis}, cached=${nav?.transferSize === 0}`,
+      { clientId: 'homepage', sampleRate: 100, tags: 'ims-redirect', severity: 'i' },
+    );
+  }).catch(() => {});
 }
 
 function loadStyles() {
@@ -489,15 +516,9 @@ async function loadPage() {
       else window.location.reload();
     };
 
-    const nav = window.performance?.getEntriesByType('navigation')?.[0];
-    const sis = nav?.serverTiming?.find(({ name }) => name === 'sis')?.description ?? 'none';
-    const logged = Promise.resolve(window.lana?.log(
-      `Homepage IMS check: signedIn=${isSignedInUser}, acomsis=${!!signedInCookie}, sis=${sis}, cached=${nav?.transferSize === 0}`,
-      { clientId: 'homepage', sampleRate: 0.1, tags: 'ims-redirect', severity: 'i' },
-    )).catch(() => {});
-    if (isSignedInUser) {
-      await Promise.race([logged, new Promise((resolve) => { setTimeout(resolve, 1000); })]);
-      await new Promise((resolve) => { setTimeout(resolve, 100); });
+    if (shouldLogImsCheck()) {
+      const logged = logImsCheck(isSignedInUser, signedInCookie);
+      if (isSignedInUser) await Promise.race([Promise.all([logged, wait(100)]), wait(300)]);
     }
 
     if (isSignedInUser && !signedInCookie) {
