@@ -446,17 +446,12 @@ function getMetadata(name, doc = document) {
   return meta && meta.content;
 }
 
-const IMS_CHECK_SAMPLE_RATE = 0.1;
 const wait = (ms) => new Promise((resolve) => { setTimeout(resolve, ms); });
 
-function shouldLogImsCheck() {
-  const params = new URLSearchParams(window.location.search);
-  if (params.get('dapreview')) return false;
+function isHomepageView() {
+  if (new URLSearchParams(window.location.search).get('dapreview')) return false;
   const [, localePrefix] = window.location.pathname.match(/^\/(?:([a-z_]+)\/?)?$/) || [];
-  const isHomepage = window.location.pathname === '/' || (localePrefix && localePrefix in locales);
-  if (!isHomepage) return false;
-  const sampleRate = parseFloat(params.get('lana-sample')) || IMS_CHECK_SAMPLE_RATE;
-  return sampleRate > Math.random() * 100;
+  return window.location.pathname === '/' || (!!localePrefix && localePrefix in locales);
 }
 
 function logImsCheck(isSignedInUser, signedInCookie) {
@@ -465,7 +460,7 @@ function logImsCheck(isSignedInUser, signedInCookie) {
     const sis = nav?.serverTiming?.find(({ name }) => name === 'sis')?.description ?? 'none';
     return window.lana?.log?.(
       `Homepage IMS check: signedIn=${isSignedInUser}, ims=${imsCheckFailed ? 'error' : 'ok'}, acomsis=${!!signedInCookie}, sis=${sis}, cached=${nav?.transferSize === 0}`,
-      { clientId: 'homepage', sampleRate: 100, tags: 'ims-redirect', severity: 'i' },
+      { clientId: 'homepage', sampleRate: 0.1, tags: 'ims-redirect', severity: 'i' },
     );
   }).catch(() => {});
 }
@@ -516,7 +511,7 @@ async function loadPage() {
       else window.location.reload();
     };
 
-    if (shouldLogImsCheck()) {
+    if (isHomepageView()) {
       const logged = logImsCheck(isSignedInUser, signedInCookie);
       if (isSignedInUser) await Promise.race([Promise.all([logged, wait(100)]), wait(300)]);
     }
