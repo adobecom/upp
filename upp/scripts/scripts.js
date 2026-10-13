@@ -448,18 +448,12 @@ function getMetadata(name, doc = document) {
 
 const wait = (ms) => new Promise((resolve) => { setTimeout(resolve, ms); });
 
-function isHomepageView() {
-  if (new URLSearchParams(window.location.search).get('dapreview')) return false;
-  const [, localePrefix] = window.location.pathname.match(/^\/(?:([a-z_]+)\/?)?$/) || [];
-  return window.location.pathname === '/' || (!!localePrefix && localePrefix in locales);
-}
-
 function logImsCheck(isSignedInUser, signedInCookie) {
   return Promise.resolve().then(() => {
     const nav = window.performance?.getEntriesByType('navigation')?.[0];
     const sis = nav?.serverTiming?.find(({ name }) => name === 'sis')?.description ?? 'none';
     return window.lana?.log?.(
-      `Homepage IMS check: signedIn=${isSignedInUser}, ims=${imsCheckFailed ? 'error' : 'ok'}, acomsis=${!!signedInCookie}, sis=${sis}, cached=${nav?.transferSize === 0}`,
+      `Homepage IMS check: signedIn=${isSignedInUser}, ims=${imsCheckFailed ? 'error' : 'ok'}, acomsis=${!!signedInCookie}, sis=${sis}, cached=${nav?.transferSize === 0}, path=${window.location.pathname}`,
       { clientId: 'homepage', sampleRate: 0.1, tags: 'ims-redirect', severity: 'i' },
     );
   }).catch(() => {});
@@ -511,10 +505,8 @@ async function loadPage() {
       else window.location.reload();
     };
 
-    if (isHomepageView()) {
-      const logged = logImsCheck(isSignedInUser, signedInCookie);
-      if (isSignedInUser) await Promise.race([Promise.all([logged, wait(100)]), wait(300)]);
-    }
+    const logged = logImsCheck(isSignedInUser, signedInCookie);
+    if (isSignedInUser) await Promise.race([Promise.all([logged, wait(100)]), wait(300)]);
 
     if (isSignedInUser && !signedInCookie) {
       const date = new Date();
