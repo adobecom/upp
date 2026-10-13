@@ -431,8 +431,6 @@ async function imsCheck() {
   return isSignedInUser;
 }
 
-// Signed-in users with an acomsis cookie are redirected to Adobe Home by Akamai before this page
-// loads. This late check only covers signed-in users without acomsis yet, or a browser-cached page.
 let adobeHomeRedirectCheckDone = false;
 async function adobeHomeRedirectCheck() {
   if (adobeHomeRedirectCheckDone) return;
@@ -467,8 +465,6 @@ async function adobeHomeRedirectCheck() {
   else window.location.reload();
 }
 
-// Doesn't load IMS: Milo's gnav starts it after the LCP section. imslib dispatches
-// onImsLibInstance once initialization has finished.
 function onImsReady(callback) {
   if (window.adobeIMS?.initialized) {
     callback();
