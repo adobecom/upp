@@ -129,3 +129,19 @@
 <script src="/upp/scripts/scripts.js" type="module"></script>
 <style>body { display: none; }</style>
 <link rel="icon" href="data:,">
+<script>
+  (() => {
+    const { host, pathname } = window.location;
+    if (pathname.includes('/plans') || pathname.includes('/catalog')) return;
+    const cookieName = host.includes('stage') ? 'acomsis_stage' : 'acomsis';
+    const hasCookie = document.cookie.split('; ').some((row) => row.startsWith(`${cookieName}=`));
+    const sis = performance.getEntriesByType('navigation')[0]?.serverTiming
+      ?.find(({ name }) => name === 'sis')?.description;
+    if (!hasCookie && sis !== '1') return;
+    const style = document.createElement('style');
+    style.id = 'ims-body-style';
+    style.textContent = 'body:first-of-type { opacity: 0.01 !important; }';
+    document.head.append(style);
+    setTimeout(() => document.getElementById('ims-body-style')?.remove(), 5000);
+  })();
+</script>

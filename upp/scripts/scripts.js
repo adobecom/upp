@@ -431,25 +431,23 @@ async function imsCheck() {
   return isSignedInUser;
 }
 
-let adobeHomeRedirectCheckDone = false;
-async function adobeHomeRedirectCheck() {
-  if (adobeHomeRedirectCheckDone) return;
-  adobeHomeRedirectCheckDone = true;
+let adobeHomeRedirectPromise;
+async function runAdobeHomeRedirectCheck() {
   const { pathname } = window.location;
-  if (pathname.includes('/plans') || pathname.includes('/catalog')) return;
+  if (pathname.includes('/plans') || pathname.includes('/catalog')) return false;
   const isSignedInUser = await imsCheck();
   const isStage = window.location.host.includes('stage');
   const signedInCookie = getCookie(isStage ? ACOM_SIGNED_IN_STATUS_STAGE : ACOM_SIGNED_IN_STATUS);
 
   if (!isSignedInUser) {
-    if (!signedInCookie) return;
+    if (!signedInCookie) return false;
     if (!isStage) {
       document.cookie = `${ACOM_SIGNED_IN_STATUS}=;path=/;expires=${new Date(0).toUTCString()};`;
       document.cookie = `${ACOM_SIGNED_IN_STATUS}=;path=/;expires=${new Date(0).toUTCString()};domain=adobe.com;`;
     } else {
       document.cookie = `${ACOM_SIGNED_IN_STATUS_STAGE}=;path=/;expires=${new Date(0).toUTCString()};domain=www.stage.adobe.com;`;
     }
-    return;
+    return false;
   }
 
   if (!signedInCookie) {
@@ -457,12 +455,18 @@ async function adobeHomeRedirectCheck() {
     date.setTime(date.getTime() + (365 * 24 * 60 * 60 * 1000));
     document.cookie = `${isStage ? ACOM_SIGNED_IN_STATUS_STAGE : ACOM_SIGNED_IN_STATUS}=1;path=/;expires=${date.toUTCString()};domain=${isStage ? 'www.stage.' : ''}adobe.com;`;
   } else if (window.location.href.includes('/fragments/')) {
-    return;
+    return false;
   }
 
   const ahomeUrl = window.adobeid?.redirect_uri;
   if (ahomeUrl?.includes('/home')) window.location.href = ahomeUrl;
   else window.location.reload();
+  return true;
+}
+
+function adobeHomeRedirectCheck() {
+  adobeHomeRedirectPromise ||= runAdobeHomeRedirectCheck();
+  return adobeHomeRedirectPromise;
 }
 
 function onImsReady(callback) {
@@ -511,13 +515,26 @@ async function loadPage() {
     document.head.appendChild(ahomeMeta);
   }
 
-  const { loadArea, setConfig, loadLana } = await import(`${miloLibs}/utils/utils.js`);
+  const { loadArea, setConfig, loadLana, loadIms } = await import(`${miloLibs}/utils/utils.js`);
   setConfig({ ...CONFIG, miloLibs });
   loadLana({ clientId: 'homepage' });
 
   decorateArea();
 
-  onImsReady(adobeHomeRedirectCheck);
+  if (document.getElementById('ims-body-style')) {
+    loadIms()
+      .then(adobeHomeRedirectCheck)
+      .catch((e) => {
+        window.lana?.log('Homepage IMS check failed', e);
+        onImsReady(adobeHomeRedirectCheck);
+        return false;
+      })
+      .then((redirecting) => {
+        if (!redirecting) document.getElementById('ims-body-style')?.remove();
+      });
+  } else {
+    onImsReady(adobeHomeRedirectCheck);
+  }
   const loadAreaPromise = loadArea();
 
   // for media_ update for feds
