@@ -461,6 +461,17 @@ function loadStyles() {
 async function loadPage() {
   loadStyles();
 
+  const response = await fetch(
+    'https://main--da-cc--adobecom.aem.page/cc-shared/placeholders.json',
+  );
+  if (!response.ok) {
+    throw new Error(`Failed to load CC placeholders: ${response.status}`);
+  }
+  const { data } = await response.json();
+  CONFIG.placeholders = Object.fromEntries(
+    data.map(({ key, value }) => [key, value]),
+  );
+
   const path = window.location.pathname;
   if (!path.includes('/plans') && !path.includes('/catalog')
     && !document.querySelector('meta[name="adobe-home-redirect"]')) {
