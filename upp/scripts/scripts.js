@@ -461,9 +461,12 @@ function loadStyles() {
 async function loadPage() {
   loadStyles();
 
-  const placeholderDomain = window.location.hostname.endsWith('.aem.page') ? 'aem.page' : 'aem.live';
+  const { origin } = window.location;
+  const placeholderOrigin = ['https://www.adobe.com', 'https://www.stage.adobe.com'].includes(origin)
+    ? origin
+    : 'https://main--da-cc--adobecom.aem.live';
   const response = await fetch(
-    `https://main--da-cc--adobecom.${placeholderDomain}/cc-shared/placeholders.json`,
+    `${placeholderOrigin}/cc-shared/placeholders.json`,
   );
   if (!response.ok) {
     throw new Error(`Failed to load CC placeholders: ${response.status}`);
