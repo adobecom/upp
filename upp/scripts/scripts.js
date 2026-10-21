@@ -318,13 +318,16 @@ async function preloadMasFragment(a) {
   if (url.hostname !== 'mas.adobe.com' || !url.pathname.endsWith('/studio.html')) return;
   const params = new URLSearchParams(url.hash.replace(/^#/, ''));
   const fragment = params.get('fragment') || params.get('query');
-  if (!fragment || preloadedMasFragments.has(fragment)) return;
-  preloadedMasFragments.add(fragment);
+  const mask = params.get('mask');
+  const preloadKey = `${fragment}|${mask ?? ''}`;
+  if (!fragment || preloadedMasFragments.has(preloadKey)) return;
+  preloadedMasFragments.add(preloadKey);
 
   const { locale, country } = getMasLocale(getConfig().locale, await getMasMarket(getMetadata));
   const apiKey = getConfig().commerce?.['wcs-api-key'] ?? DEFAULT_MAS_FRAGMENT_API_KEY;
   let endpoint = `${MAS_FRAGMENT_API}?id=${fragment}&api_key=${apiKey}&locale=${locale}`;
   if (country && !locale.endsWith(`_${country}`)) endpoint += `&country=${country}`;
+  if (mask) endpoint += `&mask=${mask}`;
 
   loadLink(endpoint, { rel: 'preload', as: 'fetch', crossorigin: 'anonymous', type: 'application/json', fetchpriority: 'low' });
 }
