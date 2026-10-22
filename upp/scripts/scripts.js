@@ -461,23 +461,29 @@ function loadStyles() {
 async function loadPage() {
   loadStyles();
 
-  const { origin } = window.location;
-  const placeholderOrigin = ['https://www.adobe.com', 'https://www.stage.adobe.com'].includes(origin)
+  const { origin, hostname } = window.location;
+  let placeholderOrigin = ['https://www.adobe.com', 'https://www.stage.adobe.com'].includes(origin)
     ? origin
     : 'https://main--da-cc--adobecom.aem.live';
+  if (hostname.endsWith('.aem.page')) placeholderOrigin = 'https://www.stage.adobe.com';
   const path = window.location.pathname;
   const locale = path.split('/')[1];
   const placeholderPrefix = Object.prototype.hasOwnProperty.call(locales, locale) && locale ? `/${locale}` : '';
-  const response = await fetch(
-    `${placeholderOrigin}${placeholderPrefix}/cc-shared/placeholders.json`,
-  );
-  if (!response.ok) {
-    throw new Error(`Failed to load CC placeholders: ${response.status}`);
+  try {
+    const response = await fetch(
+      `${placeholderOrigin}${placeholderPrefix}/cc-shared/placeholders.json`,
+    );
+    if (!response.ok) {
+      throw new Error(`Failed to load CC placeholders: ${response.status}`);
+    }
+    const { data } = await response.json();
+    CONFIG.placeholders = Object.fromEntries(
+      data.map(({ key, value }) => [key, value]),
+    );
+  } catch (e) {
+    // eslint-disable-next-line no-console
+    console.error('Failed to load CC placeholders', e);
   }
-  const { data } = await response.json();
-  CONFIG.placeholders = Object.fromEntries(
-    data.map(({ key, value }) => [key, value]),
-  );
 
   if (!path.includes('/plans') && !path.includes('/catalog')
     && !document.querySelector('meta[name="adobe-home-redirect"]')) {
