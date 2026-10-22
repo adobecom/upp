@@ -294,21 +294,30 @@ function getMasLocale(miloLocale, geoCountry) {
   let [country = 'US', language = 'en'] = (MAS_GEO_MAP[geo] ?? geo).split('_', 2);
   country = country.toUpperCase();
   language = language.toLowerCase();
-  const marketOverride = MARKET_LOCALE_OVERRIDES[language]?.[geoCountry]; 
+  // Like Milo's merch.js, only fall back to a market's Global-EN locale when the page isn't
+  // already that market's localized site (e.g. /au or /in keep their native locale).
+  const marketOverride = geoCountry !== country
+    ? MARKET_LOCALE_OVERRIDES[language]?.[geoCountry]
+    : undefined;
   return { locale: marketOverride ?? MAS_EXTRA_LOCALES[geo] ?? `${language}_${country}`, country: geoCountry ?? country };
 }
 
 // Mirrors the country Milo's merch.js stamps on mas-commerce-service, so the preload URL matches
 // the fragment request MAS actually makes (a raw geo country would be an unused, uncached request).
-async function getMasMarket(getMetadata) {
-  const flag = new URLSearchParams(window.location.search).get('mas-geo-detection') ?? getMetadata('mas-geo-detection');
-  if (!['on', 'true'].includes(flag?.toLowerCase())) return undefined;
-  const { getValidatedMarket } = await import(`${miloLibs}/utils/market.js`);
-  return (await getValidatedMarket())?.toUpperCase();
+let masMarketPromise;
+function getMasMarket(getMiloMetadata) {
+  masMarketPromise ??= (async () => {
+    const flag = new URLSearchParams(window.location.search).get('mas-geo-detection')
+      ?? getMiloMetadata('mas-geo-detection');
+    if (!['on', 'true'].includes(flag?.toLowerCase())) return undefined;
+    const { getValidatedMarket } = await import(`${miloLibs}/utils/market.js`);
+    return (await getValidatedMarket())?.toUpperCase();
+  })();
+  return masMarketPromise;
 }
 
 async function preloadMasFragment(a) {
-  const { loadLink, getConfig, getMetadata } = await import(`${miloLibs}/utils/utils.js`);
+  const { loadLink, getConfig, getMetadata: getMiloMetadata } = await import(`${miloLibs}/utils/utils.js`);
   let url;
   try {
     url = new URL(a.href);
@@ -323,7 +332,7 @@ async function preloadMasFragment(a) {
   if (!fragment || preloadedMasFragments.has(preloadKey)) return;
   preloadedMasFragments.add(preloadKey);
 
-  const { locale, country } = getMasLocale(getConfig().locale, await getMasMarket(getMetadata));
+  const { locale, country } = getMasLocale(getConfig().locale, await getMasMarket(getMiloMetadata));
   const apiKey = getConfig().commerce?.['wcs-api-key'] ?? DEFAULT_MAS_FRAGMENT_API_KEY;
   let endpoint = `${MAS_FRAGMENT_API}?id=${fragment}&api_key=${apiKey}&locale=${locale}`;
   if (country && !locale.endsWith(`_${country}`)) endpoint += `&country=${country}`;
