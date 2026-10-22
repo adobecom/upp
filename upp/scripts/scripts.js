@@ -465,8 +465,11 @@ async function loadPage() {
   const placeholderOrigin = ['https://www.adobe.com', 'https://www.stage.adobe.com'].includes(origin)
     ? origin
     : 'https://main--da-cc--adobecom.aem.live';
+  const path = window.location.pathname;
+  const locale = path.split('/')[1];
+  const placeholderPrefix = Object.prototype.hasOwnProperty.call(locales, locale) && locale ? `/${locale}` : '';
   const response = await fetch(
-    `${placeholderOrigin}/cc-shared/placeholders.json`,
+    `${placeholderOrigin}${placeholderPrefix}/cc-shared/placeholders.json`,
   );
   if (!response.ok) {
     throw new Error(`Failed to load CC placeholders: ${response.status}`);
@@ -476,7 +479,6 @@ async function loadPage() {
     data.map(({ key, value }) => [key, value]),
   );
 
-  const path = window.location.pathname;
   if (!path.includes('/plans') && !path.includes('/catalog')
     && !document.querySelector('meta[name="adobe-home-redirect"]')) {
     const ahomeMeta = document.createElement('meta');
