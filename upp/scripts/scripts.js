@@ -189,20 +189,6 @@ const CONFIG = {
 
 const miloLibs = setLibs(LIBS);
 
-// The MAS fragment preload awaits market.js when geo detection is on; preloading it now, before
-// utils.js resolves, keeps it off the critical path. Milo's getMetadata isn't available yet.
-function preloadMasMarketModule() {
-  const flag = new URLSearchParams(window.location.search).get('mas-geo-detection')
-    ?? document.head.querySelector('meta[name="mas-geo-detection"]')?.content;
-  if (!['on', 'true'].includes(flag?.toLowerCase())) return;
-  const link = document.createElement('link');
-  link.rel = 'modulepreload';
-  link.href = `${miloLibs}/utils/market.js`;
-  document.head.append(link);
-}
-
-preloadMasMarketModule();
-
 function replaceDotMedia(elem = document) {
   const resetAttributeBase = (tag, attr) => {
     elem.querySelectorAll(`${tag}[${attr}^="./media_"]`).forEach((el) => {
@@ -310,23 +296,19 @@ function getMasLocale(miloLocale, geoCountry) {
   let [country = 'US', language = 'en'] = (MAS_GEO_MAP[geo] ?? geo).split('_', 2);
   country = country.toUpperCase();
   language = language.toLowerCase();
-  // Like Milo's merch.js, only fall back to a market's Global-EN locale when the page isn't
-  // already that market's localized site (e.g. /au or /in keep their native locale).
   const marketOverride = geoCountry !== country
     ? MARKET_LOCALE_OVERRIDES[language]?.[geoCountry]
     : undefined;
   return { locale: marketOverride ?? MAS_EXTRA_LOCALES[geo] ?? `${language}_${country}`, country: geoCountry ?? country };
 }
 
-// Mirrors the country Milo's merch.js stamps on mas-commerce-service, so the preload URL matches
-// the fragment request MAS actually makes (a raw geo country would be an unused, uncached request).
 let masMarketPromise;
 function getMasMarket(getMiloMetadata) {
   masMarketPromise ??= (async () => {
     const flag = new URLSearchParams(window.location.search).get('mas-geo-detection')
       ?? getMiloMetadata('mas-geo-detection');
     if (!['on', 'true'].includes(flag?.toLowerCase())) return undefined;
-    const { getValidatedMarket } = await import(`${miloLibs}/utils/market.js`);
+    const { getValidatedMarket } = await import(`${miloLibs}/utils/utils.js`);
     return (await getValidatedMarket())?.toUpperCase();
   })();
   return masMarketPromise;
