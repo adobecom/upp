@@ -33,3 +33,11 @@ export const [setLibs, getLibs] = (() => {
     }, () => libs,
   ];
 })();
+
+export function isSignedOutFromServerTiming(cookieName) {
+  const hasSignedInCookie = document.cookie.split('; ')
+    .some((row) => row.startsWith(`${cookieName}=`));
+  const sis = window.performance?.getEntriesByType?.('navigation')?.[0]?.serverTiming
+    ?.find(({ name }) => name === 'sis')?.description;
+  return sis === '0' && !hasSignedInCookie;
+}
