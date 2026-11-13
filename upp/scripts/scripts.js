@@ -10,7 +10,7 @@
  * governing permissions and limitations under the License.
  */
 
-import { isSignedOutFromServerTiming, setLibs } from './utils.js';
+import { setLibs } from './utils.js';
 
 const ACOM_SIGNED_IN_STATUS = 'acomsis';
 const ACOM_SIGNED_IN_STATUS_STAGE = 'acomsis_stage';
@@ -436,13 +436,6 @@ async function imsCheck() {
   const { host, pathname } = window.location;
   // no need to check IMS for these cases:
   if (!host.includes('adobe.com') || pathname.split('/').at(-1).startsWith('media_')) return false;
-
-  const cookieName = host.includes('stage') ? ACOM_SIGNED_IN_STATUS_STAGE : ACOM_SIGNED_IN_STATUS;
-  // Positive or conflicting signals still need environment-specific IMS validation.
-  if (isSignedOutFromServerTiming(cookieName)) {
-    document.getElementById('ims-body-style')?.remove();
-    return false;
-  }
 
   const { loadIms, setConfig } = await import(`${miloLibs}/utils/utils.js`);
   setConfig({ ...CONFIG, miloLibs });
