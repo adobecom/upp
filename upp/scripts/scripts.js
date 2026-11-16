@@ -10,7 +10,16 @@
  * governing permissions and limitations under the License.
  */
 
-import { setLibs } from './utils.js';
+import { setLibs, addLcpPreloads } from './utils.js';
+
+// Added by head.html only on opted-in pages.
+const lcpPreloadsUrl = document.getElementById('c2-lcp-preloads')?.href;
+const lcpPreloads = lcpPreloadsUrl
+  ? fetch(lcpPreloadsUrl).then((resp) => {
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    return resp.json();
+  }).then(({ data }) => (Array.isArray(data) ? data : []))
+  : Promise.resolve([]);
 
 const ACOM_SIGNED_IN_STATUS = 'acomsis';
 const ACOM_SIGNED_IN_STATUS_STAGE = 'acomsis_stage';
@@ -188,6 +197,10 @@ const CONFIG = {
  */
 
 const miloLibs = setLibs(LIBS);
+
+lcpPreloads.then((rows) => addLcpPreloads(rows, miloLibs)).catch((e) => {
+  window.lana?.log(`LCP preloads failed: ${e.message}`, { tags: 'lcp-preloads', errorType: 'i' });
+});
 
 function replaceDotMedia(elem = document) {
   const resetAttributeBase = (tag, attr) => {

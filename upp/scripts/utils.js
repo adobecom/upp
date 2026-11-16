@@ -33,3 +33,28 @@ export const [setLibs, getLibs] = (() => {
     }, () => libs,
   ];
 })();
+
+const LCP_PRELOAD_RELS = ['preload', 'modulepreload', 'preconnect'];
+
+export function addLcpPreloads(rows = [], libs = getLibs()) {
+  rows.forEach(({ rel, href, as, crossorigin, priority }) => {
+    if (!LCP_PRELOAD_RELS.includes(rel) || !href) return;
+    let resolved;
+    try {
+      resolved = new URL(href.replace('{libs}', libs), window.location.href);
+    } catch {
+      return;
+    }
+    if ([...document.head.querySelectorAll(`link[rel="${rel}"]`)].some((l) => l.href === resolved.href)) return;
+    // Absolute, so href-based "already loaded" checks don't mistake a preload for the file.
+    // Preconnects use the bare origin, as Milo's warmTypekit() does, so they aren't duplicated.
+    const url = rel === 'preconnect' ? resolved.origin : resolved.href;
+    const link = document.createElement('link');
+    link.setAttribute('rel', rel);
+    link.setAttribute('href', url);
+    if (as) link.setAttribute('as', as);
+    if (crossorigin) link.setAttribute('crossorigin', crossorigin);
+    if (priority) link.setAttribute('fetchpriority', priority);
+    document.head.append(link);
+  });
+}
