@@ -14,5 +14,7 @@
   .rich-content.mobile-heading-lg .heading-2 {
     font-size: var(--s2a-typography-font-size-heading-1);
     line-height: var(--s2a-typography-line-height-heading-1);
+    padding: 0 24px;
+    margin-top: 32px;
   }
 }
