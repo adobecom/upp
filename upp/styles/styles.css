@@ -9,3 +9,10 @@
  header:not(.global-navigation) {
   border-bottom: none;
 }
+
+@media (width < 768px) {
+  .rich-content.mobile-heading-lg .heading-2 {
+    font-size: var(--s2a-typography-font-size-heading-1);
+    line-height: var(--s2a-typography-line-height-heading-1);
+  }
+}
